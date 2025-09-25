@@ -365,23 +365,28 @@ class DeploymentManager:
                     shutil.copytree(parent_path, parent_layer, dirs_exist_ok=True)
                     lower_layers.append(str(parent_layer))
         
-        # Mount overlay filesystem
+        # Mount overlay filesystem (only if running as root; otherwise fall back)
         try:
             lower_layers_str = ":".join(lower_layers) if lower_layers else str(upper_dir / "current")
+            # If not running as root, avoid using overlay mounts to prevent sudo prompts
+            if hasattr(os, "geteuid") and os.geteuid() != 0:
+                logger.warning("Overlay FS requires root privileges; falling back to copy strategy")
+                return self._create_copy_overlay(iteration_id, iteration_path, parent_iterations, overlay_dir)
+
             mount_cmd = [
-                'sudo', 'mount', '-t', 'overlay', 'overlay',
+                'mount', '-t', 'overlay', 'overlay',
                 '-o', f'lowerdir={lower_layers_str},upperdir={upper_dir}/current,workdir={work_dir}',
                 str(merged_dir)
             ]
-            
+
             result = subprocess.run(mount_cmd, capture_output=True, text=True)
             if result.returncode == 0:
-                logger.info("✅ Overlay filesystem mounted successfully")
+                logger.debug("✅ Overlay filesystem mounted successfully")
                 return merged_dir
             else:
                 logger.warning(f"Overlay mount failed, falling back to copy: {result.stderr}")
                 return self._create_copy_overlay(iteration_id, iteration_path, parent_iterations, overlay_dir)
-                
+
         except Exception as e:
             logger.warning(f"Overlay filesystem not available, falling back to copy: {e}")
             return self._create_copy_overlay(iteration_id, iteration_path, parent_iterations, overlay_dir)
@@ -403,11 +408,11 @@ class DeploymentManager:
                 parent_path = self.project_root / "iterations" / parent_id
                 if parent_path.exists():
                     shutil.copytree(parent_path, merged_dir, dirs_exist_ok=True)
-                    logger.info(f"📋 Copied parent iteration: {parent_id}")
+                    logger.debug(f"📋 Copied parent iteration: {parent_id}")
         
         # Copy current iteration (overwrites parent files)
         shutil.copytree(iteration_path, merged_dir, dirs_exist_ok=True)
-        logger.info(f"📋 Copied current iteration: {iteration_id}")
+        logger.debug(f"📋 Copied current iteration: {iteration_id}")
         
         return merged_dir
     
@@ -455,7 +460,7 @@ class DeploymentManager:
             
             target_path.symlink_to(iteration_files[rel_path])
         
-        logger.info(f"🔗 Created {len(all_files)} symlinks for transparent overlay")
+        logger.debug(f"🔗 Created {len(all_files)} symlinks for transparent overlay")
         return merged_dir
     
     def _build_docker_image(self, 
@@ -474,7 +479,24 @@ class DeploymentManager:
             dockerfile_content = self._generate_dockerfile(config)
             with open(dockerfile_path, 'w') as f:
                 f.write(dockerfile_content)
-        
+
+        # Ensure Python dependencies file exists when language is Python
+        if config.language.lower() == 'python':
+            req_path = source_path / "requirements.txt"
+            if not req_path.exists():
+                # Provide sensible defaults based on detected framework
+                default_reqs = (
+                    "fastapi\nuvicorn\n" if config.framework.lower() == "fastapi" else "flask\ngunicorn\n"
+                )
+                try:
+                    with open(req_path, 'w') as f:
+                        f.write(default_reqs)
+                    logger.warning(
+                        f"requirements.txt not found; created default dependencies for framework: {config.framework}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not create requirements.txt automatically: {e}")
+
         # Build image
         try:
             image, build_logs = self.docker_client.images.build(

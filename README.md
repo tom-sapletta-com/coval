@@ -10,6 +10,39 @@
 **COVAL** is a comprehensive Python package that manages iterative code generation, execution, and repair with multiple LLM models, integrated Docker Compose deployments, transparent volume overlays, legacy cleanup, and adaptive cost optimization to enable efficient and scalable automated code repair workflows.
 
 
+```
+                    START
+                      │
+                  [TRIAGE]
+                      │
+              Collect Metrics
+                      │
+            ┌─────────┴─────────┐
+            │  DECISION MODEL   │
+            └─────────┬─────────┘
+                      │
+           C_fix > 1.5 * C_new?
+                 ┌────┴────┐
+                YES        NO
+                 │          │
+            [REBUILD]   [REPAIR]
+                 │          │
+           Recommend      MRE
+           Rebuilding   Creation
+                 │          │
+                END    Fix Generation
+                           │
+                      Validation
+                      ┌────┴────┐
+                   PASS        FAIL
+                     │          │
+                 [SUCCESS]  Retry?
+                     │      ┌──┴──┐
+                    END    YES   NO
+                            │     │
+                      Next Iter  END
+```
+
 <?xml version="1.0" encoding="UTF-8"?>
 <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
 <path d="M0 0 C337.92 0 675.84 0 1024 0 C1024 337.92 1024 675.84 1024 1024 C686.08 1024 348.16 1024 0 1024 C0 686.08 0 348.16 0 0 Z " fill="#F9EBD5" transform="translate(0,0)"/>
@@ -81,67 +114,6 @@ coval repair -e error.log --deploy
 coval cleanup -c 5
 ```
 
-## 🧰 Makefile Automation
-
-The repository includes a comprehensive `Makefile` that streamlines the full development and release workflow. Use the commands below to get productive quickly:
-
-### Environment & Dependencies
-
-```bash
-make setup          # Create virtualenv and install dev dependencies
-make install        # Install runtime dependencies only
-make install-docs   # Install documentation toolchain
-```
-
-### Code Quality & Testing
-
-- **`make format`** – Format the codebase with Black.
-- **`make lint`** – Run Black, Flake8, and MyPy checks.
-- **`make test`** – Execute the full pytest suite with coverage.
-- **`make quick-test`** – Fast iteration loop (`format` + `test-fast`).
-- **`make full-check`** – Complete verification (`format`, `lint`, `test`, `security-check`).
-
-### Build & Deployment
-
-- **`make build`** – Produce source and wheel distributions.
-- **`make docker-build`** – Build the Docker image tagged with the current version and `latest`.
-- **`make deploy-local`** – Build artifacts and run the Docker container locally.
-
-### Release Automation
-
-- **`make publish`** – Automatically bumps the patch version, builds the project, and uploads it to PyPI.
-- **`make publish-test`** – Publish artifacts to TestPyPI.
-- **`make publish-docker`** – Push Docker images to the configured registry.
-- **`make release-patch`**, **`make release-minor`**, **`make release-major`** – Run quality gates, bump versions, build artifacts, and publish to PyPI & Docker.
-
-> **Note:** The `make publish` target automatically increments the patch version via `make version-patch` before uploading. This prevents accidental attempts to reuse an existing version on PyPI.
-
-### Version Management Workflow
-
-```bash
-make version          # Display current version and active git branch
-make version-patch    # Bump X.Y.Z → X.Y.(Z+1), commit, and tag
-make version-minor    # Bump X.Y.Z → X.(Y+1).0, commit, and tag
-make version-major    # Bump X.Y.Z → (X+1).0.0, commit, and tag
-```
-
-Each command updates `setup.py` and `coval/__init__.py`, creates a git commit, and produces an annotated tag (e.g., `v2.0.1`).
-
-For full releases:
-
-```bash
-make release-patch    # format/lint/test → version-patch → build → publish → docker-push
-make release-minor
-make release-major
-```
-
-If a publication fails after a version bump, you can roll back by deleting the tag and resetting the commit:
-
-```bash
-git tag -d v<new_version>
-git reset --hard HEAD^   # restore previous commit
-```
-
 ## ✨ Key Features
 
 ### 🔄 **Iterative Code Management**
@@ -149,6 +121,47 @@ git reset --hard HEAD^   # restore previous commit
 - **Cost-Based Decisions**: Automatic analysis of whether to modify existing code or generate new
 - **Legacy Cleanup**: Automatic removal of old iterations with configurable retention policies
 - **History Tracking**: Complete audit trail of all code changes and decisions
+
+
+```
+1. INPUT
+   ├── Error File (stacktrace/logs)
+   ├── Source Directory
+   └── Test File (optional)
+          ↓
+2. TRIAGE
+   ├── Calculate Technical Debt
+   ├── Measure Test Coverage
+   ├── Assess Available Context
+   └── Get Model Capability
+          ↓
+3. DECISION
+   ├── Calculate Repair Cost
+   ├── Calculate Rebuild Cost
+   └── Make Decision (repair/rebuild)
+          ↓
+4. MRE CREATION [if repair]
+   ├── Copy Relevant Files
+   ├── Create Dockerfile
+   └── Generate README
+          ↓
+5. FIX GENERATION
+   ├── Prepare Context
+   ├── Generate Prompt
+   ├── Call LLM
+   └── Parse Response
+          ↓
+6. VALIDATION
+   ├── Apply Patch
+   ├── Build Container
+   ├── Run Tests
+   └── Check Results
+          ↓
+7. INTEGRATION
+   ├── Save Final Patch
+   ├── Generate Report
+   └── Return Result
+```
 
 ### 🤖 **Multi-LLM Code Generation & Repair** 
 - **6 Specialized Models**: Qwen, DeepSeek-R1, CodeLlama 13B, DeepSeek, Granite, Mistral
@@ -167,6 +180,8 @@ git reset --hard HEAD^   # restore previous commit
 - **Multi-Factor Analysis**: Considers technical debt, scope, complexity, and historical success
 - **Risk Assessment**: Evaluates confidence levels and potential regression risks
 - **Optimization Suggestions**: Recommends best approach for each scenario
+
+
 
 ## 📋 CLI Commands
 
@@ -235,6 +250,69 @@ coval stop
 ```
 
 ## 🛠 Installation
+
+
+## 🧰 Makefile Automation
+
+The repository includes a comprehensive `Makefile` that streamlines the full development and release workflow. Use the commands below to get productive quickly:
+
+### Environment & Dependencies
+
+```bash
+make setup          # Create virtualenv and install dev dependencies
+make install        # Install runtime dependencies only
+make install-docs   # Install documentation toolchain
+```
+
+### Code Quality & Testing
+
+- **`make format`** – Format the codebase with Black.
+- **`make lint`** – Run Black, Flake8, and MyPy checks.
+- **`make test`** – Execute the full pytest suite with coverage.
+- **`make quick-test`** – Fast iteration loop (`format` + `test-fast`).
+- **`make full-check`** – Complete verification (`format`, `lint`, `test`, `security-check`).
+
+### Build & Deployment
+
+- **`make build`** – Produce source and wheel distributions.
+- **`make docker-build`** – Build the Docker image tagged with the current version and `latest`.
+- **`make deploy-local`** – Build artifacts and run the Docker container locally.
+
+### Release Automation
+
+- **`make publish`** – Automatically bumps the patch version, builds the project, and uploads it to PyPI.
+- **`make publish-test`** – Publish artifacts to TestPyPI.
+- **`make publish-docker`** – Push Docker images to the configured registry.
+- **`make release-patch`**, **`make release-minor`**, **`make release-major`** – Run quality gates, bump versions, build artifacts, and publish to PyPI & Docker.
+
+> **Note:** The `make publish` target automatically increments the patch version via `make version-patch` before uploading. This prevents accidental attempts to reuse an existing version on PyPI.
+
+### Version Management Workflow
+
+```bash
+make version          # Display current version and active git branch
+make version-patch    # Bump X.Y.Z → X.Y.(Z+1), commit, and tag
+make version-minor    # Bump X.Y.Z → X.(Y+1).0, commit, and tag
+make version-major    # Bump X.Y.Z → (X+1).0.0, commit, and tag
+```
+
+Each command updates `setup.py` and `coval/__init__.py`, creates a git commit, and produces an annotated tag (e.g., `v2.0.1`).
+
+For full releases:
+
+```bash
+make release-patch    # format/lint/test → version-patch → build → publish → docker-push
+make release-minor
+make release-major
+```
+
+If a publication fails after a version bump, you can roll back by deleting the tag and resetting the commit:
+
+```bash
+git tag -d v<new_version>
+git reset --hard HEAD^   # restore previous commit
+```
+
 
 ### Prerequisites
 ```bash

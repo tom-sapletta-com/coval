@@ -270,10 +270,14 @@ class GenerationEngine:
         """Convert CLI model name to LLMModel enum."""
         cli_mapping = {
             'qwen': LLMModel.QWEN_CODER,
+            'qwen2.5-coder': LLMModel.QWEN_CODER,
             'deepseek': LLMModel.DEEPSEEK_CODER,
+            'deepseek-coder': LLMModel.DEEPSEEK_CODER,
+            'codellama': LLMModel.CODELLAMA_13B,
             'codellama13b': LLMModel.CODELLAMA_13B,
             'deepseek-r1': LLMModel.DEEPSEEK_R1,
             'granite': LLMModel.GRANITE_CODE,
+            'granite-code': LLMModel.GRANITE_CODE,
             'mistral': LLMModel.MISTRAL
         }
         return cli_mapping.get(cli_name, LLMModel.QWEN_CODER)
