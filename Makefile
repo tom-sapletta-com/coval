@@ -138,8 +138,8 @@ clean: ## Clean build artifacts
 	rm -rf *.egg-info/
 	rm -rf .pytest_cache/
 	rm -rf htmlcov/
-	find . -type d -name __pycache__ -delete
 	find . -type f -name "*.pyc" -delete
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@echo "$(GREEN)Clean complete$(NC)"
 
 .PHONY: build
@@ -204,6 +204,9 @@ publish-pypi: build ## Publish to PyPI
 
 .PHONY: publish-docker
 publish-docker: docker-push ## Alias for docker-push
+
+.PHONY: publish
+publish: publish-pypi ## Publish to PyPI (default publish target)
 
 # === DEVELOPMENT ===
 .PHONY: run

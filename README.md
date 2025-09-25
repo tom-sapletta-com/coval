@@ -1,3 +1,4 @@
+![coval-logo.svg](coval-logo.svg)
 # 🤖 COVAL v2.0 - Intelligent Code Generation, Execution, and Repair System
 
 ![COVAL](https://img.shields.io/badge/COVAL-v2.0-blue.svg)

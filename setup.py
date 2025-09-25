@@ -53,7 +53,7 @@ setup(
         "Programming Language :: Python :: 3.12",
         "Topic :: Software Development :: Code Generators",
         "Topic :: Software Development :: Testing",
-        "Topic :: System :: Systems Administration :: Containers",
+        "Topic :: System :: Systems Administration",
     ],
     python_requires=">=3.11",
     install_requires=read_requirements(),
