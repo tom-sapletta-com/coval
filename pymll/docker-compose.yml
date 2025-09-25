@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: iterations/06_fixpatchfor05fixpatc/backend
+    environment:
+      NODE_ENV: production
+      PYTHONUNBUFFERED: '1'
+    ports:
+    - 3100:3100
+    restart: unless-stopped
+  frontend:
+    build: iterations/06_fixpatchfor05fixpatc/frontend
+    environment:
+      NODE_ENV: production
+      PYTHONUNBUFFERED: '1'
+    ports:
+    - 3003:3003
+    restart: unless-stopped

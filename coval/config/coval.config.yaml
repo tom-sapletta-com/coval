@@ -1,0 +1,119 @@
+# COVAL Configuration Template
+# Copy this file to your project root as 'coval.config.yaml' and customize as needed
+
+# Project settings
+project:
+  name: "my-coval-project"
+  framework: "auto-detect"  # or specify: fastapi, flask, express, nextjs, etc.
+  language: "auto-detect"   # or specify: python, javascript, typescript, go, etc.
+  max_iterations: 50
+  cleanup_threshold: 10
+
+# Docker deployment settings
+docker:
+  base_port: 8000
+  network_name: "coval-network"
+  auto_cleanup: true
+  max_concurrent_deployments: 5
+  health_check_timeout: 60
+  deployment_timeout: 300
+
+# Volume overlay strategy
+volumes:
+  strategy: "overlay"  # overlay, copy, symlink
+  preserve_permissions: true
+  exclude_patterns:
+    - ".git"
+    - "__pycache__"
+    - "*.pyc"
+    - ".DS_Store"
+    - "node_modules"
+    - ".venv"
+    - "venv"
+
+# Code generation settings
+generation:
+  prefer_modification_threshold: 0.3  # Below this scope, prefer modification
+  generation_timeout: 300
+  max_retries: 3
+  default_model: "qwen"
+
+# Deployment strategies
+deployment:
+  strategy: "blue-green"  # blue-green, rolling, replace
+  health_check_timeout: 60
+  rollback_on_failure: true
+  auto_rollback_timeout: 60
+  max_rollback_attempts: 3
+
+# Monitoring and logging
+monitoring:
+  enabled: true
+  check_interval: 30
+  log_retention_days: 7
+  resource_monitoring: true
+
+# Cost calculation settings
+cost_calculation:
+  modify_base_cost: 10.0
+  generate_base_cost: 25.0
+  complexity_multiplier: 2.0
+  debt_penalty: 1.5
+  scope_multiplier: 3.0
+
+# Repair settings
+repair:
+  max_iterations: 5
+  auto_categorization: true
+  historical_tracking: true
+  adaptive_evaluation: true
+  rollback_on_failure: true
+
+# LLM model preferences (can override llm.config.yaml settings)
+models:
+  preferred_order:
+    - "qwen"          # Best for JSON and debugging
+    - "deepseek-r1"   # Best for reasoning and complex problems  
+    - "codellama13b"  # Best for large codebases
+    - "deepseek"      # Good for code analysis
+    - "granite"       # Stable enterprise choice
+    - "mistral"       # Fallback option
+
+# Framework-specific settings
+frameworks:
+  fastapi:
+    default_features:
+      - "async endpoints"
+      - "pydantic models"
+      - "swagger docs"
+      - "dependency injection"
+    
+  flask:
+    default_features:
+      - "blueprints"
+      - "sqlalchemy"
+      - "wtforms"
+    
+  express:
+    default_features:
+      - "middleware"
+      - "routing"
+      - "error handling"
+    
+  nextjs:
+    default_features:
+      - "typescript"
+      - "tailwind css"
+      - "api routes"
+
+# Template paths (relative to package)
+templates:
+  docker_templates: "templates/docker"
+  project_templates: "templates/projects"
+  
+# Advanced settings
+advanced:
+  parallel_processing: true
+  cache_enabled: true
+  cache_ttl: 3600  # seconds
+  debug_mode: false

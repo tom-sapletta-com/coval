@@ -1,0 +1,49 @@
+layers:
+  api:
+    frameworks:
+    - fastapi
+    - gin
+    - express
+    - actix
+    port_range:
+    - 3200
+    - 3299
+  backend:
+    frameworks:
+    - fastapi
+    - django
+    - express
+    - spring
+    port_range:
+    - 3100
+    - 3199
+  frontend:
+    frameworks:
+    - express
+    - nextjs
+    - react
+    - vue
+    port_range:
+    - 3003
+    - 3099
+  workers:
+    frameworks:
+    - python
+    - go
+    - rust
+    port_range:
+    - 3300
+    - 3399
+llm:
+  max_tokens: 16384
+  model: qwen2.5-coder:7b
+  retry_attempts: 3
+  temperature: 0.2
+project:
+  description: Multi-framework code generation with self-healing
+  name: GenerycznyApp
+  version: '3.0'
+validation:
+  auto_fix: true
+  strict_mode: true
+  test_on_generation: true
