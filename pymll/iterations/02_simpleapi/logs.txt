@@ -1,0 +1,144 @@
+2025-09-25 12:16:04,989 - INFO - 🎯 Uruchamianie iteracji: 02_simpleapi
+2025-09-25 12:16:04,989 - INFO - 📄 Logi zapisywane do: iterations/02_simpleapi/logs.txt
+2025-09-25 12:16:04,989 - INFO - ========== Próba 1/5 ==========
+2025-09-25 12:16:07,146 - INFO - 🐳 Docker Compose uruchomiony
+2025-09-25 12:16:17,226 - ERROR -   Frontend: ❌ Niedostępny
+2025-09-25 12:16:17,231 - INFO -   Backend: ✅ (http://localhost:3100/docs)
+2025-09-25 12:16:17,231 - WARNING - ❌ Testy E2E nie przeszły
+2025-09-25 12:16:17,231 - INFO - 🔧 Generowanie patcha naprawczego...
+2025-09-25 12:16:17,276 - INFO - 🚀 Generowanie iteracji: fix_patch_for_02_simpleapi
+2025-09-25 12:16:17,277 - INFO - 📞 Wywołanie modelu: qwen2.5-coder:7b
+2025-09-25 12:16:21,894 - INFO - 🔍 Rozpoczynam parsowanie odpowiedzi LLM...
+2025-09-25 12:16:21,894 - INFO - 🔍 Testuję 5 wzorców JSON...
+2025-09-25 12:16:21,895 - INFO - ✅ Pomyślnie sparsowano JSON metodą 'markdown_json_block'
+2025-09-25 12:16:21,895 - INFO - 📊 Znaleziono 2 komponentów
+2025-09-25 12:16:21,895 - INFO -   - frontend (frontend/nextjs): 2 plików
+2025-09-25 12:16:21,895 - INFO -   - backend (backend/fastapi): 2 plików
+2025-09-25 12:16:21,895 - INFO - 🎯 Użyto metody parsowania: markdown_json_block
+2025-09-25 12:16:21,895 - INFO - 💾 Zapisano komponenty do: iterations/03_fixpatchfor02simplea/components.json
+2025-09-25 12:16:21,895 - INFO - 🔨 Rozpoczynam generowanie plików komponentów...
+2025-09-25 12:16:21,895 - INFO - 🔨 Generuję komponent 1/2: frontend
+2025-09-25 12:16:21,895 - INFO -   ✅ Utworzono: iterations/03_fixpatchfor02simplea/frontend/server.js
+2025-09-25 12:16:21,896 - INFO -   ✅ Utworzono: iterations/03_fixpatchfor02simplea/frontend/package.json
+2025-09-25 12:16:21,896 - INFO -   ✅ Utworzono Dockerfile dla frontend
+2025-09-25 12:16:21,896 - INFO - 🔨 Generuję komponent 2/2: backend
+2025-09-25 12:16:21,896 - INFO -   ✅ Utworzono: iterations/03_fixpatchfor02simplea/backend/main.py
+2025-09-25 12:16:21,896 - INFO -   ✅ Utworzono: iterations/03_fixpatchfor02simplea/backend/requirements.txt
+2025-09-25 12:16:21,896 - INFO -   ✅ Utworzono Dockerfile dla backend
+2025-09-25 12:16:21,896 - INFO - ✅ Parsowanie i generowanie plików zakończone pomyślnie
+2025-09-25 12:16:21,896 - INFO - 🔍 Walidacja iteracji...
+2025-09-25 12:16:21,896 - INFO -   ℹ️ Opcjonalny katalog api jest pusty
+2025-09-25 12:16:21,897 - INFO -   ℹ️ Opcjonalny katalog workers jest pusty
+2025-09-25 12:16:21,897 - INFO -   ✅ Walidacja pomyślna
+2025-09-25 12:16:21,897 - INFO - ✅ Iteracja 03_fixpatchfor02simplea wygenerowana pomyślnie
+2025-09-25 12:16:21,898 - INFO - ✅ Docker Compose zaktualizowany
+2025-09-25 12:16:21,898 - INFO - ========== Próba 2/5 ==========
+2025-09-25 12:16:37,913 - ERROR - ❌ Docker Compose błąd: time="2025-09-25T12:16:32+02:00" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
+failed to solve: process "/bin/sh -c npm install" did not complete successfully: exit code: 1
+
+2025-09-25 12:16:37,913 - ERROR - ❌ Docker Compose nie uruchomił się poprawnie
+2025-09-25 12:16:37,913 - INFO - 🔧 Generowanie patcha naprawczego...
+2025-09-25 12:16:37,949 - INFO - 🚀 Generowanie iteracji: fix_patch_for_03_fixpatchfor02simplea
+2025-09-25 12:16:37,949 - INFO - 📞 Wywołanie modelu: qwen2.5-coder:7b
+2025-09-25 12:16:45,755 - INFO - 🔍 Rozpoczynam parsowanie odpowiedzi LLM...
+2025-09-25 12:16:45,756 - INFO - 🔍 Testuję 5 wzorców JSON...
+2025-09-25 12:16:45,756 - INFO - ✅ Pomyślnie sparsowano JSON metodą 'markdown_json_block'
+2025-09-25 12:16:45,756 - INFO - 📊 Znaleziono 3 komponentów
+2025-09-25 12:16:45,756 - INFO -   - frontend (frontend/nextjs): 2 plików
+2025-09-25 12:16:45,756 - INFO -   - backend (backend/fastapi): 2 plików
+2025-09-25 12:16:45,756 - INFO -   - worker (workers/python): 1 plików
+2025-09-25 12:16:45,756 - INFO - 🎯 Użyto metody parsowania: markdown_json_block
+2025-09-25 12:16:45,756 - INFO - 💾 Zapisano komponenty do: iterations/04_fixpatchfor03fixpatc/components.json
+2025-09-25 12:16:45,757 - INFO - 🔨 Rozpoczynam generowanie plików komponentów...
+2025-09-25 12:16:45,757 - INFO - 🔨 Generuję komponent 1/3: frontend
+2025-09-25 12:16:45,757 - INFO -   ✅ Utworzono: iterations/04_fixpatchfor03fixpatc/frontend/pages/index.js
+2025-09-25 12:16:45,757 - INFO -   ✅ Utworzono: iterations/04_fixpatchfor03fixpatc/frontend/package.json
+2025-09-25 12:16:45,758 - INFO -   ✅ Utworzono Dockerfile dla frontend
+2025-09-25 12:16:45,758 - INFO - 🔨 Generuję komponent 2/3: backend
+2025-09-25 12:16:45,758 - INFO -   ✅ Utworzono: iterations/04_fixpatchfor03fixpatc/backend/main.py
+2025-09-25 12:16:45,758 - INFO -   ✅ Utworzono: iterations/04_fixpatchfor03fixpatc/backend/requirements.txt
+2025-09-25 12:16:45,758 - INFO -   ✅ Utworzono Dockerfile dla backend
+2025-09-25 12:16:45,758 - INFO - 🔨 Generuję komponent 3/3: worker
+2025-09-25 12:16:45,758 - INFO -   ✅ Utworzono: iterations/04_fixpatchfor03fixpatc/workers/worker.py
+2025-09-25 12:16:45,758 - INFO -   ✅ Utworzono Dockerfile dla workers
+2025-09-25 12:16:45,758 - INFO - ✅ Parsowanie i generowanie plików zakończone pomyślnie
+2025-09-25 12:16:45,758 - INFO - 🔍 Walidacja iteracji...
+2025-09-25 12:16:45,759 - INFO -   ℹ️ Opcjonalny katalog api jest pusty
+2025-09-25 12:16:45,759 - INFO -   ✅ Walidacja pomyślna
+2025-09-25 12:16:45,759 - INFO - ✅ Iteracja 04_fixpatchfor03fixpatc wygenerowana pomyślnie
+2025-09-25 12:16:45,760 - INFO - ✅ Docker Compose zaktualizowany
+2025-09-25 12:16:45,760 - INFO - ========== Próba 3/5 ==========
+2025-09-25 12:16:46,229 - ERROR - ❌ Docker Compose błąd: time="2025-09-25T12:16:45+02:00" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
+failed to solve: failed to compute cache key: failed to calculate checksum of ref 0ab76522-80ff-4245-9027-570027476225::wcurr0ldjzc9ok3q9ku9mtyjj: "/requirements.txt": not found
+
+2025-09-25 12:16:46,229 - ERROR - ❌ Docker Compose nie uruchomił się poprawnie
+2025-09-25 12:16:46,229 - INFO - 🔧 Generowanie patcha naprawczego...
+2025-09-25 12:16:46,265 - INFO - 🚀 Generowanie iteracji: fix_patch_for_04_fixpatchfor03fixpatc
+2025-09-25 12:16:46,266 - INFO - 📞 Wywołanie modelu: qwen2.5-coder:7b
+2025-09-25 12:17:20,296 - INFO - 🔍 Rozpoczynam parsowanie odpowiedzi LLM...
+2025-09-25 12:17:20,296 - INFO - 🔍 Testuję 5 wzorców JSON...
+2025-09-25 12:17:20,296 - INFO - ✅ Pomyślnie sparsowano JSON metodą 'markdown_json_block'
+2025-09-25 12:17:20,297 - INFO - 📊 Znaleziono 3 komponentów
+2025-09-25 12:17:20,297 - INFO -   - frontend (frontend/nextjs): 2 plików
+2025-09-25 12:17:20,297 - INFO -   - backend (backend/fastapi): 2 plików
+2025-09-25 12:17:20,297 - INFO -   - worker (workers/python): 1 plików
+2025-09-25 12:17:20,297 - INFO - 🎯 Użyto metody parsowania: markdown_json_block
+2025-09-25 12:17:20,297 - INFO - 💾 Zapisano komponenty do: iterations/05_fixpatchfor04fixpatc/components.json
+2025-09-25 12:17:20,297 - INFO - 🔨 Rozpoczynam generowanie plików komponentów...
+2025-09-25 12:17:20,297 - INFO - 🔨 Generuję komponent 1/3: frontend
+2025-09-25 12:17:20,297 - INFO -   ✅ Utworzono: iterations/05_fixpatchfor04fixpatc/frontend/package.json
+2025-09-25 12:17:20,298 - INFO -   ✅ Utworzono: iterations/05_fixpatchfor04fixpatc/frontend/pages/index.js
+2025-09-25 12:17:20,298 - INFO -   ✅ Utworzono Dockerfile dla frontend
+2025-09-25 12:17:20,298 - INFO - 🔨 Generuję komponent 2/3: backend
+2025-09-25 12:17:20,298 - INFO -   ✅ Utworzono: iterations/05_fixpatchfor04fixpatc/backend/main.py
+2025-09-25 12:17:20,298 - INFO -   ✅ Utworzono: iterations/05_fixpatchfor04fixpatc/backend/requirements.txt
+2025-09-25 12:17:20,298 - INFO -   ✅ Utworzono Dockerfile dla backend
+2025-09-25 12:17:20,298 - INFO - 🔨 Generuję komponent 3/3: worker
+2025-09-25 12:17:20,298 - INFO -   ✅ Utworzono: iterations/05_fixpatchfor04fixpatc/workers/worker.py
+2025-09-25 12:17:20,299 - INFO -   ✅ Utworzono Dockerfile dla workers
+2025-09-25 12:17:20,299 - INFO - ✅ Parsowanie i generowanie plików zakończone pomyślnie
+2025-09-25 12:17:20,299 - INFO - 🔍 Walidacja iteracji...
+2025-09-25 12:17:20,299 - INFO -   ℹ️ Opcjonalny katalog api jest pusty
+2025-09-25 12:17:20,299 - INFO -   ✅ Walidacja pomyślna
+2025-09-25 12:17:20,299 - INFO - ✅ Iteracja 05_fixpatchfor04fixpatc wygenerowana pomyślnie
+2025-09-25 12:17:20,300 - INFO - ✅ Docker Compose zaktualizowany
+2025-09-25 12:17:20,301 - INFO - ========== Próba 4/5 ==========
+2025-09-25 12:17:20,637 - ERROR - ❌ Docker Compose błąd: time="2025-09-25T12:17:20+02:00" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
+failed to solve: failed to compute cache key: failed to calculate checksum of ref 0ab76522-80ff-4245-9027-570027476225::6bm4e7sm6dilxy6ibm9fnyahn: "/requirements.txt": not found
+
+2025-09-25 12:17:20,637 - ERROR - ❌ Docker Compose nie uruchomił się poprawnie
+2025-09-25 12:17:20,637 - INFO - 🔧 Generowanie patcha naprawczego...
+2025-09-25 12:17:20,674 - INFO - 🚀 Generowanie iteracji: fix_patch_for_05_fixpatchfor04fixpatc
+2025-09-25 12:17:20,675 - INFO - 📞 Wywołanie modelu: qwen2.5-coder:7b
+2025-09-25 12:17:26,465 - INFO - 🔍 Rozpoczynam parsowanie odpowiedzi LLM...
+2025-09-25 12:17:26,465 - INFO - 🔍 Testuję 5 wzorców JSON...
+2025-09-25 12:17:26,466 - INFO - ✅ Pomyślnie sparsowano JSON metodą 'markdown_json_block'
+2025-09-25 12:17:26,466 - INFO - 📊 Znaleziono 2 komponentów
+2025-09-25 12:17:26,466 - INFO -   - frontend (frontend/nextjs): 4 plików
+2025-09-25 12:17:26,466 - INFO -   - backend (backend/fastapi): 2 plików
+2025-09-25 12:17:26,466 - INFO - 🎯 Użyto metody parsowania: markdown_json_block
+2025-09-25 12:17:26,466 - INFO - 💾 Zapisano komponenty do: iterations/06_fixpatchfor05fixpatc/components.json
+2025-09-25 12:17:26,466 - INFO - 🔨 Rozpoczynam generowanie plików komponentów...
+2025-09-25 12:17:26,466 - INFO - 🔨 Generuję komponent 1/2: frontend
+2025-09-25 12:17:26,467 - INFO -   ✅ Utworzono: iterations/06_fixpatchfor05fixpatc/frontend/server.js
+2025-09-25 12:17:26,467 - INFO -   ✅ Utworzono: iterations/06_fixpatchfor05fixpatc/frontend/package.json
+2025-09-25 12:17:26,467 - INFO -   ✅ Utworzono: iterations/06_fixpatchfor05fixpatc/frontend/pages/index.js
+2025-09-25 12:17:26,467 - INFO -   ✅ Utworzono: iterations/06_fixpatchfor05fixpatc/frontend/next.config.js
+2025-09-25 12:17:26,467 - INFO -   ✅ Utworzono Dockerfile dla frontend
+2025-09-25 12:17:26,468 - INFO - 🔨 Generuję komponent 2/2: backend
+2025-09-25 12:17:26,468 - INFO -   ✅ Utworzono: iterations/06_fixpatchfor05fixpatc/backend/main.py
+2025-09-25 12:17:26,468 - INFO -   ✅ Utworzono: iterations/06_fixpatchfor05fixpatc/backend/requirements.txt
+2025-09-25 12:17:26,468 - INFO -   ✅ Utworzono Dockerfile dla backend
+2025-09-25 12:17:26,468 - INFO - ✅ Parsowanie i generowanie plików zakończone pomyślnie
+2025-09-25 12:17:26,468 - INFO - 🔍 Walidacja iteracji...
+2025-09-25 12:17:26,468 - INFO -   ℹ️ Opcjonalny katalog api jest pusty
+2025-09-25 12:17:26,469 - INFO -   ℹ️ Opcjonalny katalog workers jest pusty
+2025-09-25 12:17:26,469 - INFO -   ✅ Walidacja pomyślna
+2025-09-25 12:17:26,469 - INFO - ✅ Iteracja 06_fixpatchfor05fixpatc wygenerowana pomyślnie
+2025-09-25 12:17:26,470 - INFO - ✅ Docker Compose zaktualizowany
+2025-09-25 12:17:26,470 - INFO - ========== Próba 5/5 ==========
+2025-09-25 12:17:54,978 - INFO - 🐳 Docker Compose uruchomiony
+2025-09-25 12:18:04,980 - ERROR -   Frontend: ❌ Niedostępny
+2025-09-25 12:18:04,985 - INFO -   Backend: ✅ (http://localhost:3100/docs)
+2025-09-25 12:18:04,985 - WARNING - ❌ Testy E2E nie przeszły
+2025-09-25 12:18:04,985 - ERROR - ⚠️ Self-healing zakończony po 5 próbach bez sukcesu

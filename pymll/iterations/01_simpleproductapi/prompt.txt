@@ -1,0 +1,41 @@
+Create a complete implementation for project: GenerycznyApp
+
+TASK: Simple product API
+
+FRAMEWORKS TO USE:
+- Frontend: express
+- Backend: fastapi
+- API: fastapi
+- Workers: python
+
+RESPONSE FORMAT (STRICT JSON):
+{
+  "version": "1.0",
+  "components": [
+    {
+      "name": "frontend",
+      "layer": "frontend",
+      "framework": "express",
+      "files": {
+        "server.js": "// Complete working code here",
+        "package.json": "{\"name\":\"frontend\",\"version\":\"1.0.0\",\"dependencies\":{}}"
+      }
+    },
+    {
+      "name": "backend",
+      "layer": "backend",
+      "framework": "fastapi",
+      "files": {
+        "main.py": "from fastapi import FastAPI\napp = FastAPI()\n@app.get('/')\ndef root():\n    return {\"status\": \"ok\"}",
+        "requirements.txt": "fastapi==0.110.0\nuvicorn==0.29.0"
+      }
+    }
+  ]
+}
+
+IMPORTANT:
+- Generate COMPLETE, WORKING code
+- Use proper dependency versions
+- Include all required files
+- Code must be production-ready
+- Response MUST be valid JSON only
