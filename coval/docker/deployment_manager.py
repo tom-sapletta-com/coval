@@ -370,7 +370,7 @@ class DeploymentManager:
             lower_layers_str = ":".join(lower_layers) if lower_layers else str(upper_dir / "current")
             # If not running as root, avoid using overlay mounts to prevent sudo prompts
             if hasattr(os, "geteuid") and os.geteuid() != 0:
-                logger.warning("Overlay FS requires root privileges; falling back to copy strategy")
+                logger.debug("Overlay FS requires root privileges; falling back to copy strategy")
                 return self._create_copy_overlay(iteration_id, iteration_path, parent_iterations, overlay_dir)
 
             mount_cmd = [
@@ -384,11 +384,11 @@ class DeploymentManager:
                 logger.debug("✅ Overlay filesystem mounted successfully")
                 return merged_dir
             else:
-                logger.warning(f"Overlay mount failed, falling back to copy: {result.stderr}")
+                logger.debug(f"Overlay mount failed, falling back to copy: {result.stderr}")
                 return self._create_copy_overlay(iteration_id, iteration_path, parent_iterations, overlay_dir)
 
         except Exception as e:
-            logger.warning(f"Overlay filesystem not available, falling back to copy: {e}")
+            logger.debug(f"Overlay filesystem not available, falling back to copy: {e}")
             return self._create_copy_overlay(iteration_id, iteration_path, parent_iterations, overlay_dir)
     
     def _create_copy_overlay(self, 
@@ -491,11 +491,11 @@ class DeploymentManager:
                 try:
                     with open(req_path, 'w') as f:
                         f.write(default_reqs)
-                    logger.warning(
+                    logger.debug(
                         f"requirements.txt not found; created default dependencies for framework: {config.framework}"
                     )
                 except Exception as e:
-                    logger.warning(f"Could not create requirements.txt automatically: {e}")
+                    logger.debug(f"Could not create requirements.txt automatically: {e}")
 
         # Build image
         try:
