@@ -577,9 +577,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Robust entrypoint: prefer uvicorn for FastAPI if available; otherwise run common entry files
 CMD ["/bin/sh", "-c", "set -e; \
     if command -v uvicorn >/dev/null 2>&1 && [ -f app.py ]; then \
-        exec uvicorn app:app --host 0.0.0.0 --port ${PORT}; \
+        exec uvicorn app:app --host 0.0.0.0 --port ${{PORT}}; \
     elif command -v uvicorn >/dev/null 2>&1 && [ -f server.py ]; then \
-        exec uvicorn server:app --host 0.0.0.0 --port ${PORT}; \
+        exec uvicorn server:app --host 0.0.0.0 --port ${{PORT}}; \
     elif [ -f main.py ]; then \
         exec python main.py; \
     elif [ -f app.py ]; then \
@@ -587,7 +587,7 @@ CMD ["/bin/sh", "-c", "set -e; \
     elif [ -f server.py ]; then \
         exec python server.py; \
     else \
-        exec python -m http.server ${PORT}; \
+        exec python -m http.server ${{PORT}}; \
     fi"]
 """
     
@@ -809,14 +809,17 @@ CMD ["./start.sh"]
     def _detect_framework(self, path: Path) -> str:
         """Auto-detect framework."""
         if (path / "requirements.txt").exists():
-            with open(path / "requirements.txt", 'r') as f:
-                content = f.read().lower()
-                if 'fastapi' in content:
-                    return 'fastapi'
-                elif 'flask' in content:
-                    return 'flask'
-                elif 'django' in content:
-                    return 'django'
+            try:
+                with open(path / "requirements.txt", 'r') as f:
+                    content = f.read().lower()
+                    if 'fastapi' in content:
+                        return 'fastapi'
+                    elif 'flask' in content:
+                        return 'flask'
+                    elif 'django' in content:
+                        return 'django'
+            except Exception:
+                pass
         
         if (path / "package.json").exists():
             try:
@@ -829,6 +832,20 @@ CMD ["./start.sh"]
                         return 'nextjs'
             except:
                 pass
+        
+        # Fallback: scan Python source files for imports/usages
+        try:
+            for file_path in list(path.rglob('*.py'))[:50]:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    src = f.read().lower()
+                    if ('from fastapi' in src) or ('import fastapi' in src) or ('fastapi(' in src):
+                        return 'fastapi'
+                    if ('from flask' in src) or ('import flask' in src) or ('flask(' in src):
+                        return 'flask'
+                    if ('from django' in src) or ('import django' in src):
+                        return 'django'
+        except Exception:
+            pass
         
         return 'unknown'
     

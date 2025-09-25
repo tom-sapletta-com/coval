@@ -766,29 +766,46 @@ def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, progress=None,
         print("✅")
         
         print("📊 Updating status...", end=" ", flush=True)
-        # Update iteration status
+        # Update iteration status based on real status
         orch.iteration_manager.update_iteration_status(
             iteration_id,
             'deployed',
-            docker_status='running'
+            docker_status=deployment_status.status
         )
         print("✅")
         
-        port = list(deployment_status.port_mappings.values())[0] if deployment_status.port_mappings else 8000
+        port = None
+        if deployment_status.port_mappings:
+            try:
+                # host_port
+                port = list(deployment_status.port_mappings.values())[0]
+            except Exception:
+                port = None
         
         # Update progress if provided (backward compatibility)
         if progress and task:
-            progress.update(task, description=f"✅ Deployed at http://localhost:{port}")
+            if deployment_status.status == 'running' and port:
+                progress.update(task, description=f"✅ Deployed at http://localhost:{port}")
+            else:
+                progress.update(task, description="⚠️ Deployment started, verifying status...")
         else:
-            print(f"🌐 Available at http://localhost:{port}")
+            if deployment_status.status == 'running' and port:
+                print(f"🌐 Available at http://localhost:{port}")
+            else:
+                print("⚠️ Deployment started, verifying status...")
+        
+        title = "Deployment Info"
+        header = "🚀 Deployment successful!" if deployment_status.status == 'running' else "⚠️ Deployment created (not running)"
+        url_line = f"🌐 URL: [green]http://localhost:{port}[/green]" if port else "🌐 URL: [yellow]N/A[/yellow]"
+        status_line = f"📊 Status: [yellow]{deployment_status.status}[/yellow]"
         
         deployment_panel = Panel(
-            f"🚀 Deployment successful!\n"
+            f"{header}\n"
             f"📁 Iteration: [cyan]{iteration_id}[/cyan]\n"
             f"🐳 Container: [blue]{deployment_status.container_name}[/blue]\n"
-            f"🌐 URL: [green]http://localhost:{port}[/green]\n"
-            f"📊 Status: [yellow]{deployment_status.status}[/yellow]",
-            title="Deployment Info"
+            f"{url_line}\n"
+            f"{status_line}",
+            title=title
         )
         
         console.print(deployment_panel)
