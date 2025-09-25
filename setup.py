@@ -35,9 +35,9 @@ def read_requirements():
 
 setup(
     name="coval",
-    version="2.0.2",
+    version="2.0.3",
     author="Tom Sapletta",
-    author_email="tom@sapletta.com",
+    author_email="info@softreck.dev",
     description="Intelligent code generation, execution, and repair system with iterative Docker deployments",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
@@ -46,7 +46,7 @@ setup(
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.11",
