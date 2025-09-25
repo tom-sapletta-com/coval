@@ -13,6 +13,7 @@ import logging
 import subprocess
 import tempfile
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
@@ -508,35 +509,51 @@ class GenerationEngine:
     
     def _call_llm(self, model_key: str, prompt: str) -> Optional[str]:
         """Call the LLM with the generation prompt."""
-        try:
-            # Get model configuration and actual model name - handle both structures
-            models_config = self.config.get('models', self.config)
-            model_config = models_config.get(model_key, {})
-            model_name = model_config.get('model_name', model_config.get('model', model_key))
-            
-            # Get timeout from global config
-            timeout = self.config.get('global', {}).get('timeout_seconds', 120)
-            
-            # Call ollama with prompt via stdin
-            cmd = ["ollama", "run", model_name]
-            
-            result = subprocess.run(
-                cmd,
-                input=prompt,
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
-            
-            if result.returncode == 0:
-                return result.stdout.strip()
-            else:
-                logger.error(f"LLM call failed: {result.stderr}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error calling LLM: {e}")
-            return None
+        # Get model configuration and actual model name - handle both structures
+        models_config = self.config.get('models', self.config)
+        model_config = models_config.get(model_key, {})
+        model_name = model_config.get('model_name', model_config.get('model', model_key))
+
+        # Base timeout and retry strategy
+        base_timeout = int(self.config.get('global', {}).get('timeout_seconds', 120))
+        max_retries = int(model_config.get('retry_attempts', 3))
+        # Exponential backoff timeouts: base, 2x, 4x (capped)
+        timeouts = [base_timeout, base_timeout * 2, base_timeout * 4]
+
+        cmd = ["ollama", "run", model_name]
+
+        last_error: Optional[str] = None
+        for attempt in range(1, max_retries + 1):
+            timeout = timeouts[min(attempt - 1, len(timeouts) - 1)]
+            try:
+                result = subprocess.run(
+                    cmd,
+                    input=prompt,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
+
+                if result.returncode == 0:
+                    return result.stdout.strip()
+                else:
+                    last_error = result.stderr.strip()
+                    logger.warning(f"LLM call failed (attempt {attempt}/{max_retries}): {last_error}")
+            except subprocess.TimeoutExpired:
+                last_error = f"Timed out after {timeout} seconds"
+                logger.warning(f"LLM call timed out (attempt {attempt}/{max_retries}, timeout={timeout}s)")
+            except Exception as e:
+                last_error = str(e)
+                logger.error(f"Error calling LLM (attempt {attempt}/{max_retries}): {e}")
+
+            # Small backoff between retries
+            if attempt < max_retries:
+                time.sleep(2)
+
+        # All attempts failed
+        if last_error:
+            logger.error(f"LLM call failed after {max_retries} attempts: {last_error}")
+        return None
     
     def _parse_generation_response(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
         """Parse the LLM response to extract files, documentation, and tests."""

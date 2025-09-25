@@ -15,6 +15,7 @@ import subprocess
 import shutil
 import tempfile
 import time
+import socket
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
@@ -269,14 +270,12 @@ class DeploymentManager:
         # Auto-detect framework and settings
         framework = self._detect_framework(iteration_path)
         language = self._detect_language(iteration_path)
-        
-        # Find Docker files
         dockerfile_path = self._find_dockerfile(iteration_path)
         compose_path = self._find_docker_compose(iteration_path)
         
         # Calculate port
         base_port = self.config['docker']['base_port']
-        assigned_port = base_port + len(self.active_deployments)
+        assigned_port = self._find_free_port(base_port)
         
         # Setup volume mappings
         volumes = {
@@ -306,6 +305,23 @@ class DeploymentManager:
             health_check_endpoint=f"http://localhost:{assigned_port}/health",
             deployment_strategy=self.config['volumes']['strategy']
         )
+
+    def _is_port_available(self, port: int, host: str = "127.0.0.1") -> bool:
+        """Check if a TCP port is available on the given host."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            result = s.connect_ex((host, port))
+            return result != 0  # non-zero means connection failed -> likely free
+
+    def _find_free_port(self, start_port: int, max_tries: int = 200) -> int:
+        """Find a free TCP port starting from start_port."""
+        port = start_port
+        for _ in range(max_tries):
+            if self._is_port_available(port):
+                return port
+            port += 1
+        # As a fallback, return the start_port and let Docker handle conflicts (will error if used)
+        return start_port
     
     def _setup_volume_overlays(self, 
                               iteration_id: str,
@@ -688,7 +704,7 @@ CMD ["./start.sh"]
             if container.status == 'running':
                 deployment_status.status = 'running'
                 deployment_status.health_status = 'healthy'
-                logger.info(f"✅ Container is running and healthy: {container.name}")
+                logger.debug(f"✅ Container is running and healthy: {container.name}")
             else:
                 deployment_status.status = 'failed'
                 deployment_status.health_status = 'unhealthy'
