@@ -12,7 +12,7 @@ Features:
 - Adaptive evaluation and learning
 """
 
-__version__ = "2.0.9"
+__version__ = "2.0.10"
 __author__ = "Tom Sapletta"
 __email__ = "tom@sapletta.com"
 
