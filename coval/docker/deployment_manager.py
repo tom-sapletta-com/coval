@@ -24,6 +24,8 @@ from docker.models.containers import Container
 from docker.models.networks import Network
 
 logger = logging.getLogger(__name__)
+# Set to WARNING to suppress verbose INFO logs that break clean progress display
+logger.setLevel(logging.WARNING)
 
 
 @dataclass

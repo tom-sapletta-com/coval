@@ -60,7 +60,7 @@ class COVALOrchestrator:
         log_dir.mkdir(exist_ok=True)
         
         logging.basicConfig(
-            level=logging.INFO,
+            level=logging.WARNING,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
                 logging.FileHandler(log_dir / "coval.log"),
@@ -120,60 +120,54 @@ def generate(ctx, description, framework, language, features, model, parent, dep
     """
     orch = get_orchestrator(ctx.obj['project_root'])
     
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console
-    ) as progress:
-        
-        # Create new iteration
-        task = progress.add_task("Creating iteration...", total=None)
-        iteration_id = orch.iteration_manager.create_iteration(
-            description=description,
-            generation_type='generate',
-            parent_iteration=parent
+    # Simple step-by-step progress display
+    print("🚀 Starting code generation...")
+    print()
+    
+    print("📁 Creating iteration...", end=" ", flush=True)
+    iteration_id = orch.iteration_manager.create_iteration(
+        description=description,
+        generation_type='generate',
+        parent_iteration=parent
+    )
+    print(f"✅ {iteration_id}")
+    print()
+    
+    # Generate code (GenerationEngine will show its own progress)
+    request = GenerationRequest(
+        description=description,
+        framework=framework,
+        language=language,
+        features=list(features),
+        constraints=[],
+        existing_code=None
+    )
+    
+    iteration_path = orch.iteration_manager.get_iteration_path(iteration_id)
+    result = orch.generation_engine.generate_code(request, iteration_path, preferred_model=model)
+    print()
+    
+    if result.success:
+        # Update iteration status
+        orch.iteration_manager.update_iteration_status(
+            iteration_id, 
+            'generated',
+            confidence_score=result.confidence_score,
+            files_changed=list(result.generated_files.keys())
         )
         
-        progress.update(task, description=f"✅ Created iteration: {iteration_id}")
+        # Display results
+        _display_generation_results(result, iteration_id)
         
-        # Generate code
-        progress.update(task, description="🤖 Generating code...")
+        # Deploy if requested
+        if deploy:
+            print()
+            print("🚀 Deploying iteration...")
+            _deploy_iteration(orch, iteration_id)
         
-        request = GenerationRequest(
-            description=description,
-            framework=framework,
-            language=language,
-            features=list(features),
-            constraints=[],
-            existing_code=None
-        )
-        
-        iteration_path = orch.iteration_manager.get_iteration_path(iteration_id)
-        result = orch.generation_engine.generate_code(request, iteration_path, preferred_model=model)
-        
-        if result.success:
-            progress.update(task, description="✅ Code generation completed")
-            
-            # Update iteration status
-            orch.iteration_manager.update_iteration_status(
-                iteration_id, 
-                'generated',
-                confidence_score=result.confidence_score,
-                files_changed=list(result.generated_files.keys())
-            )
-            
-            # Display results
-            _display_generation_results(result, iteration_id)
-            
-            # Deploy if requested
-            if deploy:
-                progress.update(task, description="🚀 Deploying iteration...")
-                _deploy_iteration(orch, iteration_id, progress, task)
-            
-        else:
-            progress.update(task, description="❌ Code generation failed")
-            console.print(f"[red]Generation failed: {result.error_message}[/red]")
-            sys.exit(1)
+    else:
+        console.print(f"[red]Generation failed: {result.error_message}[/red]")
+        sys.exit(1)
 
 
 @cli.command()
@@ -748,9 +742,10 @@ app.listen(port, () => {
 }''')
 
 
-def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, progress, task):
-    """Deploy an iteration with progress tracking."""
+def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, progress=None, task=None):
+    """Deploy an iteration with simple progress display."""
     try:
+        print("🐳 Preparing deployment...", end=" ", flush=True)
         iteration_path = orch.iteration_manager.get_iteration_path(iteration_id)
         
         # Get parent iterations for overlay
@@ -758,24 +753,33 @@ def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, progress, task
         iteration_info = orch.iteration_manager.iterations.get(iteration_id)
         if iteration_info and iteration_info.parent_iteration:
             parent_iterations = [iteration_info.parent_iteration]
+        print("✅")
         
+        print("🚀 Creating deployment...", end=" ", flush=True)
         # Create deployment
         deployment_status = orch.deployment_manager.create_transparent_deployment(
             iteration_id=iteration_id,
             iteration_path=iteration_path,
             parent_iterations=parent_iterations
         )
+        print("✅")
         
+        print("📊 Updating status...", end=" ", flush=True)
         # Update iteration status
         orch.iteration_manager.update_iteration_status(
             iteration_id,
             'deployed',
             docker_status='running'
         )
+        print("✅")
         
         port = list(deployment_status.port_mappings.values())[0] if deployment_status.port_mappings else 8000
         
-        progress.update(task, description=f"✅ Deployed at http://localhost:{port}")
+        # Update progress if provided (backward compatibility)
+        if progress and task:
+            progress.update(task, description=f"✅ Deployed at http://localhost:{port}")
+        else:
+            print(f"🌐 Available at http://localhost:{port}")
         
         deployment_panel = Panel(
             f"🚀 Deployment successful!\n"
@@ -789,7 +793,10 @@ def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, progress, task
         console.print(deployment_panel)
         
     except Exception as e:
-        progress.update(task, description="❌ Deployment failed")
+        if progress and task:
+            progress.update(task, description="❌ Deployment failed")
+        else:
+            print("❌ Deployment failed")
         console.print(f"[red]Deployment failed: {e}[/red]")
 
 

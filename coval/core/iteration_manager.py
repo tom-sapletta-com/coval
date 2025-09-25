@@ -17,6 +17,8 @@ from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, asdict
 
 logger = logging.getLogger(__name__)
+# Set to WARNING to suppress verbose INFO logs that break clean progress display
+logger.setLevel(logging.WARNING)
 
 
 @dataclass
@@ -197,7 +199,7 @@ class IterationManager:
             parent_path = self.iterations_dir / parent_iteration
             if parent_path.exists():
                 self._copy_iteration_base(parent_path, iteration_path)
-                logger.info(f"Copied base from parent iteration: {parent_iteration}")
+                logger.debug(f"Copied base from parent iteration: {parent_iteration}")
         
         # Create iteration info
         iteration_info = IterationInfo(
@@ -217,7 +219,7 @@ class IterationManager:
         self.iterations[iteration_id] = iteration_info
         self._save_iteration_history()
         
-        logger.info(f"Created iteration {iteration_id}: {description}")
+        logger.debug(f"Created iteration {iteration_id}: {description}")
         return iteration_id
     
     def _copy_iteration_base(self, source_path: Path, target_path: Path):
@@ -265,7 +267,7 @@ class IterationManager:
                     setattr(self.iterations[iteration_id], key, value)
             
             self._save_iteration_history()
-            logger.info(f"Updated iteration {iteration_id} status to: {status}")
+            logger.debug(f"Updated iteration {iteration_id} status to: {status}")
     
     def cleanup_old_iterations(self, keep_count: Optional[int] = None) -> List[str]:
         """
@@ -303,7 +305,7 @@ class IterationManager:
                 if iteration_path.exists():
                     shutil.rmtree(iteration_path)
                     removed.append(iteration_id)
-                    logger.info(f"Removed old iteration: {iteration_id}")
+                    logger.debug(f"Removed old iteration: {iteration_id}")
         
         # Update iteration tracking
         for iteration_id in removed:

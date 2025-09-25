@@ -155,9 +155,12 @@ class GenerationEngine:
         """Load model capabilities from configuration."""
         capabilities = {}
         
-        # Skip 'global' key and process model configurations
-        for model_key, model_config in self.config.items():
-            if model_key == 'global':
+        # Check if config has 'models' section or models at top level
+        models_config = self.config.get('models', self.config)
+        
+        # Process model configurations
+        for model_key, model_config in models_config.items():
+            if model_key in ['global']:
                 continue
                 
             if isinstance(model_config, dict):
@@ -199,7 +202,6 @@ class GenerationEngine:
             model_key = self._get_config_key_from_enum(model_enum)
             
             if model_key in self.model_capabilities:
-                logger.info(f"Using user-specified model {model_enum.value}")
                 return model_key, model_enum
             else:
                 logger.warning(f"Preferred model {preferred_model} not configured, falling back to automatic selection")
@@ -219,10 +221,9 @@ class GenerationEngine:
         
         if best_model is None:
             # Default to qwen if no specific match
-            best_key = 'qwen2.5-coder'
+            best_key = 'qwen'
             best_model = LLMModel.QWEN_CODER
         
-        logger.info(f"Selected model {best_model.value} (score: {best_score:.2f}) for {request.framework} {request.language}")
         return best_key, best_model
     
     def _calculate_model_score(self, request: GenerationRequest, capabilities: ModelCapabilities) -> float:
@@ -280,19 +281,23 @@ class GenerationEngine:
     def _get_config_key_from_enum(self, model_enum: LLMModel) -> str:
         """Convert LLMModel enum back to config key."""
         enum_to_key = {
-            LLMModel.QWEN_CODER: 'qwen',
-            LLMModel.DEEPSEEK_CODER: 'deepseek', 
-            LLMModel.CODELLAMA_13B: 'codellama13b',
+            LLMModel.QWEN_CODER: 'qwen2.5-coder',
+            LLMModel.DEEPSEEK_CODER: 'deepseek-coder', 
+            LLMModel.CODELLAMA_13B: 'codellama',
             LLMModel.DEEPSEEK_R1: 'deepseek-r1',
-            LLMModel.GRANITE_CODE: 'granite',
+            LLMModel.GRANITE_CODE: 'granite-code',
             LLMModel.MISTRAL: 'mistral'
         }
-        return enum_to_key.get(model_enum, 'qwen')
+        return enum_to_key.get(model_enum, 'qwen2.5-coder')
     
-    def _ensure_model_available(self, model: LLMModel) -> bool:
+    def _ensure_model_available(self, model_key: str) -> bool:
         """Ensure the specified model is available via ollama."""
-        model_name = model.value
-        logger.info(f"🔍 Checking model availability: {model_name}")
+        # Get actual model name from config - handle both structures
+        models_config = self.config.get('models', self.config)
+        model_config = models_config.get(model_key, {})
+        model_name = model_config.get('model_name', model_config.get('model', model_key))
+        
+        print(f"🔍 {model_name}...", end=" ", flush=True)
         
         try:
             # Check if model is available
@@ -304,11 +309,11 @@ class GenerationEngine:
             )
             
             if result.returncode == 0 and model_name in result.stdout:
-                logger.info(f"✅ Model {model_name} is available")
+                print("✅")
                 return True
             
             # Pull model if not available
-            logger.info(f"📥 Pulling model: {model_name}")
+            print(f"📥 Pulling {model_name}...", end=" ", flush=True)
             pull_result = subprocess.run(
                 ["ollama", "pull", model_name],
                 capture_output=True,
@@ -317,20 +322,24 @@ class GenerationEngine:
             )
             
             if pull_result.returncode == 0:
-                logger.info(f"✅ Successfully pulled model: {model_name}")
+                print("✅")
                 return True
             else:
-                logger.error(f"❌ Failed to pull model: {pull_result.stderr}")
+                print("❌")
+                logger.error(f"Failed to pull {model_name}: {pull_result.stderr}")
                 return False
                 
         except subprocess.TimeoutExpired:
-            logger.error(f"⏱️ Timeout pulling model: {model_name}")
+            print("⏱️")
+            logger.error(f"Timeout pulling {model_name}")
             return False
         except FileNotFoundError:
-            logger.error("❌ Ollama not installed or not in PATH")
+            print("❌")
+            logger.error("Ollama not installed")
             return False
         except Exception as e:
-            logger.error(f"❌ Unexpected error: {e}")
+            print("❌")
+            logger.error(f"Model check error: {e}")
             return False
     
     def generate_code(self, request: GenerationRequest, output_dir: Path, preferred_model: Optional[str] = None) -> GenerationResult:
@@ -346,11 +355,13 @@ class GenerationEngine:
         """
         start_time = datetime.now()
         
+        print("🎯 Selecting model...", end=" ", flush=True)
         # Select optimal model (prioritize user preference)
         model_key, model = self.select_optimal_model(request, preferred_model)
+        print(f"✅ {model_key}")
         
         # Ensure model is available
-        if not self._ensure_model_available(model):
+        if not self._ensure_model_available(model_key):
             return GenerationResult(
                 success=False,
                 generated_files={},
@@ -367,15 +378,21 @@ class GenerationEngine:
             )
         
         try:
+            print("📝 Creating prompt...", end=" ", flush=True)
             # Generate the prompt
             prompt = self._create_generation_prompt(request)
+            print("✅")
             
+            print("🤖 Generating code...", end=" ", flush=True)
             # Call LLM for generation
-            generation_response = self._call_llm(model, prompt, model_key)
+            generation_response = self._call_llm(model_key, prompt)
             
             if not generation_response:
+                print("❌")
                 raise Exception("Failed to get response from LLM")
+            print("✅")
             
+            print("📄 Processing files...", end=" ", flush=True)
             # Parse and extract generated code
             files, docs, tests = self._parse_generation_response(generation_response)
             
@@ -385,9 +402,12 @@ class GenerationEngine:
             
             # Extract dependencies
             dependencies = self._extract_dependencies(request, files)
+            print("✅")
             
+            print("💾 Writing files...", end=" ", flush=True)
             # Write files to output directory
             self._write_generated_files(output_dir, files, tests)
+            print("✅")
             
             # Generate setup instructions
             setup_instructions = self._generate_setup_instructions(request, dependencies)
@@ -397,7 +417,7 @@ class GenerationEngine:
             
             execution_time = (datetime.now() - start_time).total_seconds()
             
-            logger.info(f"✅ Code generation completed in {execution_time:.2f}s")
+            print(f"🎉 Generation completed in {execution_time:.1f}s")
             
             return GenerationResult(
                 success=True,
@@ -409,13 +429,13 @@ class GenerationEngine:
                 dependencies=dependencies,
                 setup_instructions=setup_instructions,
                 execution_time=execution_time,
-                model_used=model.value,
+                model_used=self.config.get(model_key, {}).get('model', model_key),
                 confidence_score=confidence
             )
             
         except Exception as e:
             execution_time = (datetime.now() - start_time).total_seconds()
-            logger.error(f"❌ Code generation failed: {e}")
+            print(f"❌ Generation failed: {e}")
             
             return GenerationResult(
                 success=False,
@@ -427,7 +447,7 @@ class GenerationEngine:
                 dependencies=[],
                 setup_instructions="",
                 execution_time=execution_time,
-                model_used=model.value,
+                model_used=self.config.get(model_key, {}).get('model', model_key),
                 confidence_score=0.0,
                 error_message=str(e)
             )
@@ -482,22 +502,26 @@ class GenerationEngine:
         
         return "\n".join(prompt_parts)
     
-    def _call_llm(self, model: LLMModel, prompt: str, model_key: str) -> Optional[str]:
+    def _call_llm(self, model_key: str, prompt: str) -> Optional[str]:
         """Call the LLM with the generation prompt."""
         try:
-            # Get model configuration
-            model_config = self.config['models'].get(model_key, {})
-            temperature = model_config.get('temperature', 0.2)
+            # Get model configuration and actual model name - handle both structures
+            models_config = self.config.get('models', self.config)
+            model_config = models_config.get(model_key, {})
+            model_name = model_config.get('model_name', model_config.get('model', model_key))
+            
+            # Get timeout from global config
+            timeout = self.config.get('global', {}).get('timeout_seconds', 120)
             
             # Call ollama with prompt via stdin
-            cmd = ["ollama", "run", model.value]
+            cmd = ["ollama", "run", model_name]
             
             result = subprocess.run(
                 cmd,
                 input=prompt,
                 capture_output=True,
                 text=True,
-                timeout=self.config['global'].get('timeout', 300)
+                timeout=timeout
             )
             
             if result.returncode == 0:
