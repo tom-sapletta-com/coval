@@ -319,7 +319,7 @@ class DeploymentManager:
         overlay_dir = self.deployments_dir / "overlays" / iteration_id
         overlay_dir.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"📁 Setting up volume overlays in: {overlay_dir}")
+        logger.debug(f"📁 Setting up volume overlays in: {overlay_dir}")
         
         if self.config['volumes']['strategy'] == 'overlay':
             # Use overlay filesystem approach
@@ -650,7 +650,7 @@ CMD ["./start.sh"]
             # Connect container to network
             network.connect(container)
             
-            logger.info(f"🌐 Connected container to network: {config.network_name}")
+            logger.debug(f"🌐 Connected container to network: {config.network_name}")
             
         except Exception as e:
             logger.warning(f"Network setup failed: {e}")
@@ -660,7 +660,7 @@ CMD ["./start.sh"]
         try:
             return self.docker_client.networks.get(network_name)
         except docker.errors.NotFound:
-            logger.info(f"Creating Docker network: {network_name}")
+            logger.debug(f"Creating Docker network: {network_name}")
             return self.docker_client.networks.create(
                 network_name,
                 driver="bridge",
