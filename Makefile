@@ -9,8 +9,8 @@ PIP := pip
 VENV_DIR := venv
 DOCKER_IMAGE := $(PROJECT_NAME)
 DOCKER_REGISTRY := your-registry.com  # Change this to your registry
-CURRENT_VERSION := $(shell grep "version=" setup.py | sed 's/.*version="\([^"]*\)".*/\1/')
-BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
+CURRENT_VERSION = $(shell grep "version=" setup.py | sed 's/.*version="\([^"]*\)".*/\1/')
+BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
 
 # Colors for output
 RED := \033[0;31m
@@ -206,7 +206,7 @@ publish-pypi: build ## Publish to PyPI
 publish-docker: docker-push ## Alias for docker-push
 
 .PHONY: publish
-publish: publish-pypi ## Publish to PyPI (default publish target)
+publish: version-patch publish-pypi ## Auto bump patch version and publish to PyPI
 
 # === DEVELOPMENT ===
 .PHONY: run

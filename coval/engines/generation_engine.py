@@ -412,32 +412,20 @@ class GenerationEngine:
     def _call_llm(self, model: LLMModel, prompt: str, model_key: str) -> Optional[str]:
         """Call the LLM with the generation prompt."""
         try:
-            # Create temporary file for prompt
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-                f.write(prompt)
-                prompt_file = f.name
-            
             # Get model configuration
             model_config = self.config['models'].get(model_key, {})
             temperature = model_config.get('temperature', 0.2)
             
-            # Call ollama
-            cmd = [
-                "ollama", "run", model.value,
-                f"--temperature={temperature}",
-                f"< {prompt_file}"
-            ]
+            # Call ollama with prompt via stdin
+            cmd = ["ollama", "run", model.value]
             
             result = subprocess.run(
-                " ".join(cmd),
-                shell=True,
+                cmd,
+                input=prompt,
                 capture_output=True,
                 text=True,
                 timeout=self.config['global'].get('timeout', 300)
             )
-            
-            # Cleanup
-            os.unlink(prompt_file)
             
             if result.returncode == 0:
                 return result.stdout.strip()

@@ -2,6 +2,8 @@
 repairs
 iterations
 coval.config.yaml
+iteration_history.json
+logs/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

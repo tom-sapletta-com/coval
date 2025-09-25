@@ -28,6 +28,67 @@ coval repair -e error.log --deploy
 coval cleanup -c 5
 ```
 
+## 🧰 Makefile Automation
+
+The repository includes a comprehensive `Makefile` that streamlines the full development and release workflow. Use the commands below to get productive quickly:
+
+### Environment & Dependencies
+
+```bash
+make setup          # Create virtualenv and install dev dependencies
+make install        # Install runtime dependencies only
+make install-docs   # Install documentation toolchain
+```
+
+### Code Quality & Testing
+
+- **`make format`** – Format the codebase with Black.
+- **`make lint`** – Run Black, Flake8, and MyPy checks.
+- **`make test`** – Execute the full pytest suite with coverage.
+- **`make quick-test`** – Fast iteration loop (`format` + `test-fast`).
+- **`make full-check`** – Complete verification (`format`, `lint`, `test`, `security-check`).
+
+### Build & Deployment
+
+- **`make build`** – Produce source and wheel distributions.
+- **`make docker-build`** – Build the Docker image tagged with the current version and `latest`.
+- **`make deploy-local`** – Build artifacts and run the Docker container locally.
+
+### Release Automation
+
+- **`make publish`** – Automatically bumps the patch version, builds the project, and uploads it to PyPI.
+- **`make publish-test`** – Publish artifacts to TestPyPI.
+- **`make publish-docker`** – Push Docker images to the configured registry.
+- **`make release-patch`**, **`make release-minor`**, **`make release-major`** – Run quality gates, bump versions, build artifacts, and publish to PyPI & Docker.
+
+> **Note:** The `make publish` target automatically increments the patch version via `make version-patch` before uploading. This prevents accidental attempts to reuse an existing version on PyPI.
+
+### Version Management Workflow
+
+```bash
+make version          # Display current version and active git branch
+make version-patch    # Bump X.Y.Z → X.Y.(Z+1), commit, and tag
+make version-minor    # Bump X.Y.Z → X.(Y+1).0, commit, and tag
+make version-major    # Bump X.Y.Z → (X+1).0.0, commit, and tag
+```
+
+Each command updates `setup.py` and `coval/__init__.py`, creates a git commit, and produces an annotated tag (e.g., `v2.0.1`).
+
+For full releases:
+
+```bash
+make release-patch    # format/lint/test → version-patch → build → publish → docker-push
+make release-minor
+make release-major
+```
+
+If a publication fails after a version bump, you can roll back by deleting the tag and resetting the commit:
+
+```bash
+git tag -d v<new_version>
+git reset --hard HEAD^   # restore previous commit
+```
+
 ## ✨ Key Features
 
 ### 🔄 **Iterative Code Management**
@@ -59,7 +120,7 @@ coval cleanup -c 5
 ### `coval generate` - Generate New Code
 ```bash
 # Basic generation
-coval generate -d "Create a REST API for user management"
+coval generate -d "Create a REST API for user management" --model deepseek-r1
 
 # Specify framework and features
 coval generate -d "Build a blog platform" -f fastapi -l python \
@@ -148,6 +209,14 @@ source venv/bin/activate
 pip install -e .
 
 # Verify installation
+coval --help
+```
+
+Or use the Makefile helper (recommended):
+
+```bash
+make setup            # Creates venv, installs runtime + dev dependencies
+source venv/bin/activate
 coval --help
 ```
 
