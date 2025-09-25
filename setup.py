@@ -35,7 +35,7 @@ def read_requirements():
 
 setup(
     name="coval",
-    version="2.0.11",
+    version="2.0.12",
     author="Tom Sapletta",
     author_email="info@softreck.dev",
     description="Intelligent code generation, execution, and repair system with iterative Docker deployments",
