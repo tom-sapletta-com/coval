@@ -4,6 +4,7 @@ iterations
 coval.config.yaml
 iteration_history.json
 logs/
+llm.config.yaml
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

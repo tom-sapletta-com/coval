@@ -12,6 +12,7 @@ import yaml
 import logging
 import subprocess
 import tempfile
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
@@ -98,64 +99,112 @@ class GenerationEngine:
         self._setup_logging()
     
     def _load_config(self) -> Dict[str, Any]:
-        """Load LLM configuration."""
+        """Load LLM configuration, create default if missing."""
         if os.path.exists(self.config_path):
             with open(self.config_path, 'r') as f:
                 return yaml.safe_load(f)
         
-        logger.warning(f"Config file {self.config_path} not found, using defaults")
-        # Return minimal default config
-        return {
-            'global': {
-                'timeout': 60,
-                'max_iterations': 5
+        # Auto-generate config from defaults
+        print("🔧 Creating llm.config.yaml with default settings...")
+        self._create_default_config()
+        
+        # Load the newly created config
+        with open(self.config_path, 'r') as f:
+            return yaml.safe_load(f)
+    
+    def _create_default_config(self):
+        """Create default llm.config.yaml from template."""
+        # Try to copy from package config first
+        package_config = Path(__file__).parent.parent / "config" / "llm.config.yaml"
+        
+        if package_config.exists():
+            shutil.copy2(package_config, self.config_path)
+            return
+        
+        # Fallback: create minimal config if package config doesn't exist
+        default_config = {
+            'qwen': {
+                'model': 'qwen2.5-coder:7b',
+                'max_tokens': 16384,
+                'temperature': 0.2,
+                'retry_attempts': 3,
+                'base_capability': 0.85,
+                'context_window': 32768,
+                'specialization': 'code_generation_json'
             },
-            'models': {
-                'qwen2.5-coder': {
-                    'model_name': 'qwen2.5-coder:7b',
-                    'max_tokens': 16384,
-                    'temperature': 0.2,
-                    'base_capability': 0.85
-                }
+            'deepseek-r1': {
+                'model': 'deepseek-r1:7b',
+                'max_tokens': 20480,
+                'temperature': 0.1,
+                'retry_attempts': 3,
+                'base_capability': 0.88,
+                'context_window': 32768,
+                'specialization': 'reasoning_code_repair'
+            },
+            'global': {
+                'timeout_seconds': 120,
+                'max_repair_iterations': 5,
+                'success_threshold': 0.8
             }
         }
+        
+        with open(self.config_path, 'w') as f:
+            yaml.safe_dump(default_config, f, default_flow_style=False, indent=2)
     
     def _load_model_capabilities(self) -> Dict[str, ModelCapabilities]:
         """Load model capabilities from configuration."""
         capabilities = {}
         
-        for model_key, model_config in self.config.get('models', {}).items():
-            capabilities[model_key] = ModelCapabilities(
-                max_tokens=model_config.get('max_tokens', 8192),
-                temperature=model_config.get('temperature', 0.2),
-                context_window=model_config.get('context_window', 8192),
-                base_capability=model_config.get('base_capability', 0.7),
-                specializations=model_config.get('specialization', []),
-                retry_attempts=model_config.get('retry_attempts', 3)
-            )
+        # Skip 'global' key and process model configurations
+        for model_key, model_config in self.config.items():
+            if model_key == 'global':
+                continue
+                
+            if isinstance(model_config, dict):
+                # Handle specialization as string or list
+                specialization = model_config.get('specialization', [])
+                if isinstance(specialization, str):
+                    specialization = [specialization]
+                
+                capabilities[model_key] = ModelCapabilities(
+                    max_tokens=model_config.get('max_tokens', 8192),
+                    temperature=model_config.get('temperature', 0.2),
+                    context_window=model_config.get('context_window', 8192),
+                    base_capability=model_config.get('base_capability', 0.7),
+                    specializations=specialization,
+                    retry_attempts=model_config.get('retry_attempts', 3)
+                )
         
         return capabilities
     
     def _setup_logging(self):
-        """Setup logging for generation engine."""
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+        """Setup simplified logging for generation engine."""
+        # Set to WARNING to reduce verbose output, only show errors
+        logger.setLevel(logging.WARNING)
     
-    def select_optimal_model(self, request: GenerationRequest) -> Tuple[str, LLMModel]:
+    def select_optimal_model(self, request: GenerationRequest, preferred_model: Optional[str] = None) -> Tuple[str, LLMModel]:
         """
         Select the optimal model for a generation request.
         
         Args:
             request: Generation request with requirements
+            preferred_model: User-specified model preference (overrides automatic selection)
             
         Returns:
             Tuple of (model_config_key, LLMModel)
         """
+        # If user specified a model, prioritize it
+        if preferred_model:
+            model_enum = self._get_model_enum_from_cli_name(preferred_model)
+            model_key = self._get_config_key_from_enum(model_enum)
+            
+            if model_key in self.model_capabilities:
+                logger.info(f"Using user-specified model {model_enum.value}")
+                return model_key, model_enum
+            else:
+                logger.warning(f"Preferred model {preferred_model} not configured, falling back to automatic selection")
+        
+        # Automatic model selection
         best_model = None
         best_score = 0.0
         best_key = None
@@ -216,6 +265,30 @@ class GenerationEngine:
         }
         return model_mapping.get(model_key, LLMModel.QWEN_CODER)
     
+    def _get_model_enum_from_cli_name(self, cli_name: str) -> LLMModel:
+        """Convert CLI model name to LLMModel enum."""
+        cli_mapping = {
+            'qwen': LLMModel.QWEN_CODER,
+            'deepseek': LLMModel.DEEPSEEK_CODER,
+            'codellama13b': LLMModel.CODELLAMA_13B,
+            'deepseek-r1': LLMModel.DEEPSEEK_R1,
+            'granite': LLMModel.GRANITE_CODE,
+            'mistral': LLMModel.MISTRAL
+        }
+        return cli_mapping.get(cli_name, LLMModel.QWEN_CODER)
+    
+    def _get_config_key_from_enum(self, model_enum: LLMModel) -> str:
+        """Convert LLMModel enum back to config key."""
+        enum_to_key = {
+            LLMModel.QWEN_CODER: 'qwen',
+            LLMModel.DEEPSEEK_CODER: 'deepseek', 
+            LLMModel.CODELLAMA_13B: 'codellama13b',
+            LLMModel.DEEPSEEK_R1: 'deepseek-r1',
+            LLMModel.GRANITE_CODE: 'granite',
+            LLMModel.MISTRAL: 'mistral'
+        }
+        return enum_to_key.get(model_enum, 'qwen')
+    
     def _ensure_model_available(self, model: LLMModel) -> bool:
         """Ensure the specified model is available via ollama."""
         model_name = model.value
@@ -260,7 +333,7 @@ class GenerationEngine:
             logger.error(f"❌ Unexpected error: {e}")
             return False
     
-    def generate_code(self, request: GenerationRequest, output_dir: Path) -> GenerationResult:
+    def generate_code(self, request: GenerationRequest, output_dir: Path, preferred_model: Optional[str] = None) -> GenerationResult:
         """
         Generate code according to the request.
         
@@ -273,8 +346,8 @@ class GenerationEngine:
         """
         start_time = datetime.now()
         
-        # Select optimal model
-        model_key, model = self.select_optimal_model(request)
+        # Select optimal model (prioritize user preference)
+        model_key, model = self.select_optimal_model(request, preferred_model)
         
         # Ensure model is available
         if not self._ensure_model_available(model):

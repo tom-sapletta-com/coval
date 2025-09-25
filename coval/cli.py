@@ -149,7 +149,7 @@ def generate(ctx, description, framework, language, features, model, parent, dep
         )
         
         iteration_path = orch.iteration_manager.get_iteration_path(iteration_id)
-        result = orch.generation_engine.generate_code(request, iteration_path)
+        result = orch.generation_engine.generate_code(request, iteration_path, preferred_model=model)
         
         if result.success:
             progress.update(task, description="✅ Code generation completed")
