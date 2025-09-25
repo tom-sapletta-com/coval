@@ -1,5 +1,6 @@
+![coval](coval.png)
 
-# 🤖 COVAL v2.0 - Intelligent Code Generation, Execution, and Repair System
+# Intelligent Code Generation, Execution, and Repair 🤖 COVAL Developer Assistant  
 
 ![COVAL](https://img.shields.io/badge/COVAL-v2.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.11+-green.svg)
@@ -42,7 +43,6 @@
                             │     │
                       Next Iter  END
 ```
-![coval](coval.png)
 
 
 

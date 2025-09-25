@@ -473,7 +473,7 @@ class DeploymentManager:
         """Build Docker image for the iteration."""
         image_name = f"coval-{iteration_id}:latest"
         
-        logger.info(f"🔨 Building Docker image: {image_name}")
+        logger.debug(f"🔨 Building Docker image: {image_name}")
         
         # Find Dockerfile
         dockerfile_path = source_path / "Dockerfile"
@@ -500,21 +500,25 @@ class DeploymentManager:
                 except Exception as e:
                     logger.debug(f"Could not create requirements.txt automatically: {e}")
 
-        # Build image
-        try:
-            image, build_logs = self.docker_client.images.build(
-                path=str(source_path),
-                tag=image_name,
-                rm=True,
-                pull=True
-            )
-            
-            logger.info(f"✅ Built Docker image: {image_name}")
-            return image_name
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to build Docker image: {e}")
-            raise
+        # Build image with simple retry logic
+        last_exception = None
+        for attempt, pull in enumerate([False, True], start=1):
+            try:
+                image, build_logs = self.docker_client.images.build(
+                    path=str(source_path),
+                    tag=image_name,
+                    rm=True,
+                    pull=pull
+                )
+                logger.debug(f"✅ Built Docker image: {image_name} (attempt {attempt}, pull={pull})")
+                return image_name
+            except Exception as e:
+                last_exception = e
+                logger.warning(f"Docker build attempt {attempt} failed (pull={pull}): {e}")
+                time.sleep(2)
+        
+        logger.error(f"❌ Failed to build Docker image after retries: {last_exception}")
+        raise last_exception
     
     def _generate_dockerfile(self, config: DeploymentConfig) -> str:
         """Generate Dockerfile based on detected framework."""
