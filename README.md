@@ -119,15 +119,82 @@ coval stop -i iter-003
 coval stop
 ```
 
-### ⚙️ **Konfiguracja YAML (`llm.config.yaml`)**
-Każdy model ma optymalne predefiniowane ustawienia:
+## 🛠 Installation
+
+### Prerequisites
+```bash
+# System requirements
+Python 3.11+
+Docker & Docker Compose
+Ollama (for LLM models)
+
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve
+```
+
+### Install COVAL
+```bash
+# Clone repository
+git clone https://github.com/your-org/coval.git
+cd coval
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install package
+pip install -e .
+
+# Verify installation
+coval --help
+```
+
+## ⚙️ Configuration
+
+### Project Configuration (`coval.config.yaml`)
+```yaml
+# Project settings
+project:
+  name: "my-coval-project"
+  framework: "auto-detect"
+  language: "auto-detect" 
+  max_iterations: 50
+
+# Docker deployment settings  
+docker:
+  base_port: 8000
+  network_name: "coval-network"
+  auto_cleanup: true
+
+# Volume overlay strategy
+volumes:
+  strategy: "overlay"  # overlay, copy, symlink
+  preserve_permissions: true
+
+# Cost calculation settings
+cost_calculation:
+  modify_base_cost: 10.0
+  generate_base_cost: 25.0
+  complexity_multiplier: 2.0
+```
+
+### LLM Configuration (`llm.config.yaml`)
 ```yaml
 models:
   qwen2.5-coder:
-    max_tokens: 16384      # Zwiększone z 8192
-    temperature: 0.2       # Optymalna dla napraw
-    context_window: 32768  # Duży kontekst
-    base_capability: 0.85  # Baza dla dynamicznej kalkulacji
+    model_name: "qwen2.5-coder:7b"
+    max_tokens: 16384
+    temperature: 0.2
+    base_capability: 0.85
+    context_window: 32768
+    
+  deepseek-r1:
+    model_name: "deepseek-r1:7b" 
+    max_tokens: 12288
+    temperature: 0.1
+    base_capability: 0.80
+    context_window: 16384
 ```
 
 ### 🔄 **Automatyczne Pobieranie Modeli**
