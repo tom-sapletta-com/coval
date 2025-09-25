@@ -138,8 +138,11 @@ class DeploymentManager:
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         handler.setFormatter(formatter)
+        handler.setLevel(logging.DEBUG)
         logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+        # Capture everything to file, but do not propagate to root handlers
+        logger.setLevel(logging.DEBUG)
+        logger.propagate = False
     
     def _load_deployment_history(self):
         """Load deployment history from disk."""
@@ -210,7 +213,7 @@ class DeploymentManager:
         if not self.docker_client:
             raise Exception("Docker client not available")
         
-        logger.info(f"🚀 Creating transparent deployment for iteration: {iteration_id}")
+        logger.debug(f"🚀 Creating transparent deployment for iteration: {iteration_id}")
         
         # Create deployment configuration
         deployment_config = self._create_deployment_config(
@@ -254,7 +257,7 @@ class DeploymentManager:
         # Start health monitoring
         self._start_health_monitoring(deployment_status, deployment_config)
         
-        logger.info(f"✅ Deployment created: {container.name} (ID: {container.short_id})")
+        logger.debug(f"✅ Deployment created: {container.name} (ID: {container.short_id})")
         
         return deployment_status
     

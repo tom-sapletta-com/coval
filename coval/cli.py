@@ -65,7 +65,8 @@ class COVALOrchestrator:
             handlers=[
                 logging.FileHandler(log_dir / "coval.log"),
                 logging.StreamHandler()
-            ]
+            ],
+            force=True
         )
 
 
