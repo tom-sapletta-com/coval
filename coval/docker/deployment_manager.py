@@ -244,7 +244,8 @@ class DeploymentManager:
             container_id=container.id,
             container_name=container.name,
             status='starting',
-            port_mappings=deployment_config.volumes,
+            # container_port -> host_port mapping
+            port_mappings={deployment_config.base_port: deployment_config.base_port},
             health_status='unknown',
             started_at=datetime.now(),
             stopped_at=None,
@@ -552,33 +553,46 @@ class DeploymentManager:
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \\
-    curl \\
+RUN apt-get update && apt-get install -y \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt || true
 
 # Copy application code
 COPY . .
 
-# Create health check endpoint
-RUN echo 'from flask import Flask; app = Flask(__name__); @app.route("/health"); def health(): return {{"status": "healthy", "iteration": "{config.iteration_id}"}}; if __name__ == "__main__": app.run(host="0.0.0.0", port={config.base_port})' > health_check.py
+# Default port env for apps to read
+ENV PORT={config.base_port}
 
 # Expose port
 EXPOSE {config.base_port}
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \\
-    CMD curl -f http://localhost:{config.base_port}/health || exit 1
+# Health check (best-effort; app may not provide /health)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -sf http://localhost:{config.base_port}/health || exit 1
 
-# Run application
-CMD ["python", "main.py"]
+# Robust entrypoint: prefer uvicorn for FastAPI if available; otherwise run common entry files
+CMD ["/bin/sh", "-c", "set -e; \
+    if command -v uvicorn >/dev/null 2>&1 && [ -f app.py ]; then \
+        exec uvicorn app:app --host 0.0.0.0 --port ${PORT}; \
+    elif command -v uvicorn >/dev/null 2>&1 && [ -f server.py ]; then \
+        exec uvicorn server:app --host 0.0.0.0 --port ${PORT}; \
+    elif [ -f main.py ]; then \
+        exec python main.py; \
+    elif [ -f app.py ]; then \
+        exec python app.py; \
+    elif [ -f server.py ]; then \
+        exec python server.py; \
+    else \
+        exec python -m http.server ${PORT}; \
+    fi"]
 """
     
     def _generate_node_dockerfile(self, config: DeploymentConfig) -> str:
-        """Generate Node.js Dockerfile.""" 
+        """Generate Node.js Dockerfile."""
         return f"""FROM node:18-alpine
 
 WORKDIR /app
@@ -588,7 +602,7 @@ RUN apk add --no-cache curl
 
 # Copy package files first for better caching
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --only=production || npm install --omit=dev
 
 # Copy application code
 COPY . .
@@ -597,8 +611,8 @@ COPY . .
 EXPOSE {config.base_port}
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \\
-    CMD curl -f http://localhost:{config.base_port}/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -sf http://localhost:{config.base_port}/health || exit 1
 
 # Run application
 CMD ["node", "index.js"]
