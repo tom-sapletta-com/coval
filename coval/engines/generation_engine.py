@@ -20,59 +20,20 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
+# Import modular components
+from ..models.generation_models import (
+    LLMModel, GenerationRequest, GenerationResult, ModelCapabilities,
+    CLI_MODEL_MAPPING, CONFIG_KEY_MAPPING
+)
+from ..parsers.response_parser import ResponseParser
+from ..generators.prompt_generator import PromptGenerator
+from ..generators.docker_generator import DockerGenerator
+from ..validators.content_cleaner import ContentCleaner
+
 logger = logging.getLogger(__name__)
 
 
-class LLMModel(Enum):
-    """Available LLM models for code generation."""
-    QWEN_CODER = "qwen2.5-coder:7b"
-    DEEPSEEK_CODER = "deepseek-coder:6.7b"
-    CODELLAMA_13B = "codellama:13b"
-    DEEPSEEK_R1 = "deepseek-r1:7b"
-    GRANITE_CODE = "granite-code:8b"
-    MISTRAL = "mistral:7b"
-
-
-@dataclass
-class GenerationRequest:
-    """Request for code generation."""
-    description: str
-    framework: str
-    language: str
-    features: List[str]
-    constraints: List[str]
-    existing_code: Optional[str] = None
-    test_requirements: Optional[str] = None
-    performance_requirements: Optional[str] = None
-    style_guide: Optional[str] = None
-
-
-@dataclass
-class GenerationResult:
-    """Result of code generation."""
-    success: bool
-    generated_files: Dict[str, str]  # filename -> content
-    documentation: str
-    tests: Dict[str, str]  # test_filename -> content
-    dockerfile: Optional[str]
-    docker_compose: Optional[str]
-    dependencies: List[str]
-    setup_instructions: str
-    execution_time: float
-    model_used: str
-    confidence_score: float
-    error_message: Optional[str] = None
-
-
-@dataclass
-class ModelCapabilities:
-    """LLM model capabilities and specializations."""
-    max_tokens: int
-    temperature: float
-    context_window: int
-    base_capability: float
-    specializations: List[str]
-    retry_attempts: int
+# Models, dataclasses and enums are now imported from the models package
 
 
 class GenerationEngine:
@@ -91,6 +52,12 @@ class GenerationEngine:
         self.config_path = config_path or "llm.config.yaml"
         self.config = self._load_config()
         self.model_capabilities = self._load_model_capabilities()
+        
+        # Initialize modular components
+        self.response_parser = ResponseParser()
+        self.prompt_generator = PromptGenerator()
+        self.docker_generator = DockerGenerator()
+        self.content_cleaner = ContentCleaner()
         
         # Generation templates
         self.templates_dir = Path(__file__).parent.parent / "templates"
@@ -493,62 +460,8 @@ class GenerationEngine:
             )
     
     def _create_generation_prompt(self, request: GenerationRequest) -> str:
-        """Create a comprehensive prompt for code generation."""
-        prompt_parts = [
-            f"Generate a complete {request.framework} application in {request.language}.",
-            f"Description: {request.description}",
-            "",
-            "Requirements:",
-        ]
-        
-        for feature in request.features:
-            prompt_parts.append(f"- {feature}")
-        
-        if request.constraints:
-            prompt_parts.append("\nConstraints:")
-            for constraint in request.constraints:
-                prompt_parts.append(f"- {constraint}")
-        
-        if request.existing_code:
-            prompt_parts.extend([
-                "\nExisting code to integrate or modify:",
-                "```",
-                request.existing_code,
-                "```"
-            ])
-        
-        if request.test_requirements:
-            prompt_parts.extend([
-                "\nTest requirements:",
-                request.test_requirements
-            ])
-        
-        prompt_parts.extend([
-            "",
-            "IMPORTANT RULES:",
-            "- Generate ONLY clean, executable source code",
-            "- Do NOT include merge conflict markers (<<<<<<, ======, >>>>>>)",
-            "- Do NOT include template placeholders like {{variable}}",
-            "- Do NOT use SEARCH/REPLACE patterns or diff syntax", 
-            "- Do NOT wrap code in markdown code blocks (```)",
-            "- Provide complete, ready-to-run files",
-            "",
-            "Please provide:",
-            "1. Complete, working source code files",
-            "2. Comprehensive tests",
-            "3. Documentation",
-            "4. Dependencies list",
-            "5. Setup instructions",
-            "",
-            "Format the response with clear file separations using:",
-            "===== FILENAME: path/to/file.ext =====",
-            "===== TESTS: path/to/test_file.py =====",
-            "===== DOCUMENTATION =====",
-            "===== DEPENDENCIES =====",
-            "===== SETUP =====",
-        ])
-        
-        return "\n".join(prompt_parts)
+        """Create a comprehensive prompt for code generation using modular generator."""
+        return self.prompt_generator.create_generation_prompt(request)
     
     def _call_llm(self, model_key: str, prompt: str) -> Optional[str]:
         """Call the LLM with the generation prompt."""
@@ -599,442 +512,30 @@ class GenerationEngine:
         return None
     
     def _clean_generated_content(self, content: str) -> str:
-        """Clean generated content from problematic patterns while preserving valid code."""
-        import re
-        
-        # Store original content for safety
-        original_content = content
-        original_length = len(content)
-        logger.debug(f"Cleaning content of length {original_length}")
-        
-        # If content is too short, don't clean it
-        if original_length < 10:
-            logger.debug("Content too short, returning unchanged")
-            return content.strip()
-        
-        # Very conservative cleaning - only remove obvious problematic patterns
-        
-        # 1. Remove ONLY complete merge conflict blocks (with proper markers)
-        if '<<<<<<< HEAD' in content and '>>>>>>> ' in content and '=======' in content:
-            logger.debug("Removing merge conflict markers")
-            content = re.sub(r'<<<<<<< HEAD.*?=======.*?>>>>>>> \w+', '', content, flags=re.DOTALL)
-        
-        # 2. Remove SEARCH/REPLACE blocks only if they're complete
-        if '<<<<<<< SEARCH' in content and '>>>>>>> REPLACE' in content:
-            logger.debug("Removing SEARCH/REPLACE blocks")
-            content = re.sub(r'<<<<<<< SEARCH.*?>>>>>>> REPLACE', '', content, flags=re.DOTALL)
-        
-        # 3. Remove wrapping markdown code blocks ONLY if they wrap the entire content
-        lines = content.split('\n')
-        if (len(lines) >= 3 and 
-            lines[0].strip().startswith('```') and 
-            lines[-1].strip() == '```' and
-            not any(line.strip().startswith('```') for line in lines[1:-1])):
-            logger.debug("Removing wrapping code block")
-            content = '\n'.join(lines[1:-1])
-        
-        # 4. Clean up excessive whitespace (but preserve structure)
-        content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
-        content = content.strip()
-        
-        cleaned_length = len(content)
-        logger.debug(f"Content cleaned: {original_length} -> {cleaned_length} chars")
-        
-        # CRITICAL SAFETY CHECK: If we've removed more than 80% of content, return original
-        if original_length > 20 and cleaned_length < original_length * 0.2:
-            logger.warning(f"Cleaning too aggressive ({cleaned_length}/{original_length}), returning original content")
-            return original_content.strip()
-        
-        # If cleaned content is empty but original wasn't, return original
-        if not content.strip() and original_content.strip():
-            logger.warning("Cleaning resulted in empty content, returning original")
-            return original_content.strip()
-        
-        return content
+        """Clean generated content using modular ContentCleaner."""
+        return self.content_cleaner.clean_generated_content(content)
 
     def _parse_generation_response(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
-        """Parse the LLM response to extract files, documentation, and tests."""
-        files = {}
-        tests = {}
-        documentation = ""
-        
-        logger.debug(f"Parsing LLM response of length {len(response)}")
-        
-        # DEBUG: Log first 500 chars of response to see format
-        logger.debug(f"Response preview: {response[:500]}...")
-        
-        # Try multiple parsing strategies - ORDER MATTERS!
-        
-        # Strategy 1: Original format with "=====" separators
-        if "=====" in response and ("FILENAME:" in response or "FILE:" in response):
-            logger.debug("Using original format parser (===== separators)")
-            files, documentation, tests = self._parse_original_format(response)
-        
-        # Strategy 2: Markdown with filename headers (check this BEFORE JSON)
-        elif ("### FILENAME:" in response or "## FILENAME:" in response or "# FILENAME:" in response or "**FILENAME:" in response) and "```" in response:
-            logger.debug("Using markdown format parser (filename headers)")
-            files, documentation, tests = self._parse_markdown_format(response)
-        
-        # Strategy 3: Markdown code blocks (general)
-        elif "```" in response:
-            logger.debug("Using markdown code block parser")
-            files, documentation, tests = self._parse_markdown_format(response)
-        
-        # Strategy 4: JSON format (check AFTER markdown to avoid false positives)
-        elif "```json" in response or ('"files"' in response and '"content"' in response):
-            logger.debug("Attempting JSON format parser")
-            files, documentation, tests = self._parse_json_format(response)
-        
-        # Strategy 5: Fallback - create basic files from any code found
-        else:
-            logger.warning("No recognized format, using fallback parser")
-            files, documentation, tests = self._parse_fallback_format(response)
-        
-        logger.debug(f"Parsed {len(files)} files, {len(tests)} test files")
-        
-        # DEBUG: Log what files were found
-        for filename in files.keys():
-            logger.debug(f"Found file: {filename} ({len(files[filename])} chars)")
-        
-        return files, documentation, tests
+        """Parse the LLM response to extract files, documentation, and tests using modular parser."""
+        return self.response_parser.parse_generation_response(response)
     
-    def _parse_original_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
-        """Parse response using original ===== separator format."""
-        files = {}
-        tests = {}
-        documentation = ""
-        
-        sections = response.split("=====")
-        current_section = None
-        current_content = []
-        
-        for section in sections:
-            section = section.strip()
-            
-            if section.startswith("FILENAME:") or section.startswith("FILE:"):
-                # Save previous section
-                if current_section and current_content:
-                    content = "\n".join(current_content).strip()
-                    content = self._clean_generated_content(content)
-                    if content:  # Only save if content exists
-                        if current_section.startswith(("FILENAME:", "FILE:")):
-                            filename = current_section.replace("FILENAME:", "").replace("FILE:", "").strip()
-                            files[filename] = content
-                        elif current_section.startswith("TESTS:"):
-                            filename = current_section.replace("TESTS:", "").strip()
-                            tests[filename] = content
-                
-                current_section = section
-                current_content = []
-            elif section.startswith("TESTS:"):
-                # Save previous file
-                if current_section and current_content:
-                    content = "\n".join(current_content).strip()
-                    content = self._clean_generated_content(content)
-                    if content and current_section.startswith(("FILENAME:", "FILE:")):
-                        filename = current_section.replace("FILENAME:", "").replace("FILE:", "").strip()
-                        files[filename] = content
-                
-                current_section = section
-                current_content = []
-            elif section.startswith("DOCUMENTATION"):
-                current_section = "DOCUMENTATION"
-                current_content = []
-            else:
-                if current_section:
-                    current_content.append(section)
-        
-        # Handle last section
-        if current_section and current_content:
-            content = "\n".join(current_content).strip()
-            content = self._clean_generated_content(content)
-            if content:
-                if current_section.startswith(("FILENAME:", "FILE:")):
-                    filename = current_section.replace("FILENAME:", "").replace("FILE:", "").strip()
-                    files[filename] = content
-                elif current_section.startswith("TESTS:"):
-                    filename = current_section.replace("TESTS:", "").strip()
-                    tests[filename] = content
-                elif current_section == "DOCUMENTATION":
-                    documentation = content
-        
-        return files, documentation, tests
+    # Duplicate parsing methods removed - now using modular ResponseParser
     
-    def _parse_json_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
-        """Parse JSON format responses."""
-        import json
-        import re
-        
-        files = {}
-        tests = {}
-        documentation = ""
-        
-        # Find JSON blocks
-        json_pattern = r'```json\s*(\{.*?\})\s*```'
-        json_matches = re.findall(json_pattern, response, re.DOTALL)
-        
-        # Also try finding JSON without markdown wrapping
-        if not json_matches:
-            json_pattern = r'(\{[^{}]*"files"[^{}]*\{.*?\}[^{}]*\})'
-            json_matches = re.findall(json_pattern, response, re.DOTALL)
-        
-        for json_str in json_matches:
-            try:
-                data = json.loads(json_str)
-                if "files" in data:
-                    for filename, content in data["files"].items():
-                        content = self._clean_generated_content(str(content))
-                        if content:
-                            files[filename] = content
-                
-                if "tests" in data:
-                    for filename, content in data["tests"].items():
-                        content = self._clean_generated_content(str(content))
-                        if content:
-                            tests[filename] = content
-                            
-                if "documentation" in data:
-                    documentation = str(data["documentation"])
-                    
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse JSON: {e}")
-                continue
-        
-        return files, documentation, tests
-    
-    def _parse_markdown_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
-        """Parse markdown code block format."""
-        import re
-        
-        files = {}
-        tests = {}
-        documentation = ""
-        
-        # Enhanced patterns to match various markdown filename formats
-        filename_patterns = [
-            # ### FILENAME: app/main.py format (most common)
-            r'###\s*FILENAME:\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```',
-            # ## FILENAME: format
-            r'##\s*FILENAME:\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```',
-            # # FILENAME: format  
-            r'#\s*FILENAME:\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```',
-            # **FILENAME:** format
-            r'\*\*FILENAME:\*\*\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```',
-            # File: format
-            r'(?:File:|Filename:|File name:)\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```'
-        ]
-        
-        # Try each pattern
-        for pattern in filename_patterns:
-            file_matches = re.findall(pattern, response, re.DOTALL | re.IGNORECASE)
-            for filename, content in file_matches:
-                filename = filename.strip().strip('`').strip()
-                content = self._clean_generated_content(content)
-                if content and filename:
-                    # Handle directory paths in filename
-                    if '/' in filename:
-                        # Extract just the filename from path like "app/main.py" -> "main.py"
-                        # But preserve the directory structure
-                        files[filename] = content
-                    else:
-                        files[filename] = content
-        
-        # If no explicit files found with patterns, try generic code block extraction
-        if not files:
-            logger.debug("No filename patterns found, trying generic code block extraction")
-            code_pattern = r'```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```'
-            code_matches = re.findall(code_pattern, response, re.DOTALL)
-            
-            for i, content in enumerate(code_matches):
-                content = self._clean_generated_content(content)
-                if content:
-                    # Try to infer filename from content
-                    if "from fastapi import" in content or "FastAPI" in content:
-                        filename = f"main.py" if i == 0 else f"app_{i}.py"
-                    elif "def test_" in content or "import pytest" in content:
-                        filename = f"test_main.py" if i == 0 else f"test_{i}.py"
-                        tests[filename] = content
-                        continue
-                    elif "package.json" in content or '"name"' in content:
-                        filename = "package.json"
-                    elif "FROM " in content and "WORKDIR" in content:
-                        filename = "Dockerfile"
-                    elif "requirements.txt" in response or "fastapi" in content:
-                        filename = "requirements.txt"
-                    else:
-                        filename = f"app_{i}.py"
-                    
-                    files[filename] = content
-        
-        # Extract documentation from the beginning of response
-        doc_lines = []
-        lines = response.split('\n')
-        for line in lines:
-            if line.strip().startswith('#') or line.strip().startswith('```'):
-                break
-            if line.strip():
-                doc_lines.append(line.strip())
-        
-        if doc_lines:
-            documentation = '\n'.join(doc_lines[:5])  # First 5 lines as documentation
-        
-        return files, documentation, tests
-    
-    def _parse_fallback_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
-        """Fallback parser for unrecognized formats."""
-        files = {}
-        tests = {}
-        documentation = response[:500]  # Use first part as documentation
-        
-        # Look for any Python-like code patterns
-        import re
-        
-        # Find function definitions, class definitions, imports
-        python_patterns = [
-            r'(from\s+\w+.*?import.*?)(?=\n\n|\n[A-Z]|\Z)',
-            r'(import\s+\w+.*?)(?=\n\n|\n[A-Z]|\Z)',  
-            r'(class\s+\w+.*?(?=\nclass|\Z))',
-            r'(def\s+\w+.*?(?=\ndef|\nclass|\Z))',
-            r'(app\s*=.*?(?=\n\n|\nif|\Z))'
-        ]
-        
-        code_found = []
-        for pattern in python_patterns:
-            matches = re.findall(pattern, response, re.DOTALL)
-            code_found.extend(matches)
-        
-        if code_found:
-            # Combine all found code into a main file
-            combined_code = '\n\n'.join(code_found)
-            combined_code = self._clean_generated_content(combined_code)
-            if combined_code:
-                files["main.py"] = combined_code
-        
-        # If still no code found, create a basic FastAPI app
-        if not files:
-            logger.warning("No code patterns found, creating basic FastAPI template")
-            basic_app = '''from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
-'''
-            files["main.py"] = basic_app
-            
-            # Add requirements
-            files["requirements.txt"] = "fastapi==0.110.0\nuvicorn==0.27.0"
-        
-        return files, documentation, tests
+    # All parsing methods moved to modular ResponseParser
     
     def _generate_dockerfile(self, request: GenerationRequest, files: Dict[str, str]) -> str:
-        """Generate Dockerfile for the application."""
-        if request.language.lower() == 'python':
-            return self._generate_python_dockerfile(request)
-        elif request.language.lower() in ['javascript', 'typescript']:
-            return self._generate_node_dockerfile(request)
-        else:
-            return self._generate_generic_dockerfile(request)
+        """Generate Dockerfile using modular DockerGenerator."""
+        return self.docker_generator.generate_dockerfile(request, files)
     
-    def _generate_python_dockerfile(self, request: GenerationRequest) -> str:
-        """Generate Python-specific Dockerfile."""
-        return """FROM python:3.11-slim
-
-WORKDIR /app
-
-# Copy requirements first for better caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY . .
-
-# Expose port
-EXPOSE 8000
-
-# Run application
-CMD ["python", "main.py"]
-"""
+    # Docker generation methods moved to modular DockerGenerator
     
-    def _generate_node_dockerfile(self, request: GenerationRequest) -> str:
-        """Generate Node.js-specific Dockerfile."""
-        return """FROM node:18-alpine
-
-WORKDIR /app
-
-# Copy package files first for better caching
-COPY package*.json ./
-RUN npm ci --only=production
-
-# Copy application code
-COPY . .
-
-# Expose port
-EXPOSE 3000
-
-# Run application
-CMD ["node", "index.js"]
-"""
+    # Node.js Docker generation moved to modular DockerGenerator
     
-    def _generate_generic_dockerfile(self, request: GenerationRequest) -> str:
-        """Generate generic Dockerfile."""
-        return """FROM ubuntu:22.04
-
-WORKDIR /app
-
-# Install basic dependencies
-RUN apt-get update && apt-get install -y \\
-    curl \\
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy application
-COPY . .
-
-# Expose port
-EXPOSE 8000
-
-# Default command
-CMD ["./start.sh"]
-"""
+    # Generic Docker generation moved to modular DockerGenerator
     
     def _generate_docker_compose(self, request: GenerationRequest) -> str:
-        """Generate docker-compose.yml for the application."""
-        return f"""version: '3.8'
-
-services:
-  app:
-    build: .
-    ports:
-      - "8000:8000"
-    volumes:
-      - .:/app
-    environment:
-      - NODE_ENV=development
-    restart: unless-stopped
-    
-    # Add database if needed
-    depends_on:
-      - db
-      
-  db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: {request.framework.lower()}
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-volumes:
-  postgres_data:
-"""
+        """Generate docker-compose.yml using modular DockerGenerator."""
+        return self.docker_generator.generate_docker_compose(request)
     
     def _extract_dependencies(self, request: GenerationRequest, files: Dict[str, str]) -> List[str]:
         """Extract dependencies from generated files."""
