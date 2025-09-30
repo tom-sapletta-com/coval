@@ -18,7 +18,7 @@ import time
 import socket
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Set
 from dataclasses import dataclass
 import docker
 from docker.models.containers import Container
@@ -274,8 +274,13 @@ class DeploymentManager:
         dockerfile_path = self._find_dockerfile(iteration_path)
         compose_path = self._find_docker_compose(iteration_path)
         
-        # Calculate port
-        base_port = self.config['docker']['base_port']
+        # Calculate port (allow env override)
+        cfg_base = int(self.config['docker'].get('base_port', 8000))
+        env_base = os.environ.get('COVAL_BASE_PORT')
+        try:
+            base_port = int(env_base) if env_base else cfg_base
+        except ValueError:
+            base_port = cfg_base
         assigned_port = self._find_free_port(base_port)
         
         # Setup volume mappings
@@ -307,23 +312,134 @@ class DeploymentManager:
             deployment_strategy=self.config['volumes']['strategy']
         )
 
-    def _is_port_available(self, port: int, host: str = "127.0.0.1") -> bool:
-        """Check if a TCP port is available on the given host."""
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)
-            result = s.connect_ex((host, port))
-            return result != 0  # non-zero means connection failed -> likely free
+    def _is_port_available(self, port: int) -> bool:
+        """Check if a TCP port is available by attempting to bind to it."""
+        # IPv4 check on all interfaces
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(('0.0.0.0', port))
+        except OSError:
+            return False
+        # IPv6 check where applicable (ignore failures silently)
+        try:
+            with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s6:
+                s6.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s6.bind(('::', port))
+        except OSError:
+            pass
+        return True
 
-    def _find_free_port(self, start_port: int, max_tries: int = 200) -> int:
-        """Find a free TCP port starting from start_port."""
+    def _get_used_docker_ports(self) -> Set[int]:
+        """Get host ports currently published by Docker containers."""
+        used: Set[int] = set()
+        try:
+            if not self.docker_client:
+                return used
+            for container in self.docker_client.containers.list(all=True):
+                ports = container.attrs.get('NetworkSettings', {}).get('Ports', {}) or {}
+                for mapping in ports.values():
+                    if isinstance(mapping, list):
+                        for entry in mapping:
+                            hp = entry.get('HostPort')
+                            if hp:
+                                try:
+                                    used.add(int(hp))
+                                except ValueError:
+                                    pass
+        except Exception:
+            # Be permissive; if we can't read, just return what we have
+            pass
+        return used
+
+    def _find_free_port(self, start_port: int, max_tries: int = 500) -> int:
+        """Find a free TCP port starting from start_port, avoiding Docker-published ports."""
+        used_docker_ports = self._get_used_docker_ports()
         port = start_port
         for _ in range(max_tries):
-            if self._is_port_available(port):
+            if port not in used_docker_ports and self._is_port_available(port):
                 return port
             port += 1
-        # As a fallback, return the start_port and let Docker handle conflicts (will error if used)
+        # As a fallback, pick the next port after the highest used docker port
+        if used_docker_ports:
+            return max(used_docker_ports) + 1
         return start_port
     
+    # Framework and environment detection helpers
+    def _detect_framework(self, path: Path) -> str:
+        """Auto-detect framework for the iteration content."""
+        req = path / "requirements.txt"
+        if req.exists():
+            try:
+                content = req.read_text(encoding="utf-8", errors="ignore").lower()
+                if "fastapi" in content or "starlette" in content:
+                    return "fastapi"
+                if "flask" in content:
+                    return "flask"
+                if "django" in content:
+                    return "django"
+            except Exception:
+                pass
+        pkg = path / "package.json"
+        if pkg.exists():
+            try:
+                data = json.loads(pkg.read_text(encoding="utf-8", errors="ignore") or "{}")
+                deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
+                if "express" in deps:
+                    return "express"
+                if "next" in deps:
+                    return "nextjs"
+            except Exception:
+                pass
+        # Fallback: scan limited number of python files for imports
+        try:
+            for file_path in list(path.rglob("*.py"))[:50]:
+                try:
+                    src = file_path.read_text(encoding="utf-8", errors="ignore").lower()
+                except Exception:
+                    continue
+                if ("from fastapi" in src) or ("import fastapi" in src) or ("import starlette" in src) or ("from starlette" in src):
+                    return "fastapi"
+                if ("from flask" in src) or ("import flask" in src):
+                    return "flask"
+                if ("from django" in src) or ("import django" in src):
+                    return "django"
+        except Exception:
+            pass
+        return "unknown"
+
+    def _detect_language(self, path: Path) -> str:
+        """Auto-detect primary language based on file extensions."""
+        file_counts: Dict[str, int] = {}
+        for file_path in path.rglob("*"):
+            if file_path.is_file():
+                ext = file_path.suffix.lower()
+                file_counts[ext] = file_counts.get(ext, 0) + 1
+        mapping = {
+            ".py": "python",
+            ".js": "javascript",
+            ".ts": "typescript",
+            ".go": "go",
+        }
+        for ext in sorted(file_counts.keys(), key=file_counts.get, reverse=True):
+            if ext in mapping:
+                return mapping[ext]
+        return "unknown"
+
+    def _find_dockerfile(self, path: Path) -> str:
+        """Find a Dockerfile path relative to iteration root if present."""
+        for location in ("Dockerfile", "docker/Dockerfile"):
+            if (path / location).exists():
+                return location
+        return ""
+
+    def _find_docker_compose(self, path: Path) -> str:
+        """Find a docker-compose file if present."""
+        for location in ("docker-compose.yml", "compose.yml"):
+            if (path / location).exists():
+                return location
+        return ""
+
     def _setup_volume_overlays(self, 
                               iteration_id: str,
                               iteration_path: Path,
@@ -559,7 +675,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt || true
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
@@ -580,6 +696,8 @@ CMD ["/bin/sh", "-c", "set -e; \
         exec uvicorn app:app --host 0.0.0.0 --port ${{PORT}}; \
     elif command -v uvicorn >/dev/null 2>&1 && [ -f server.py ]; then \
         exec uvicorn server:app --host 0.0.0.0 --port ${{PORT}}; \
+    elif command -v uvicorn >/dev/null 2>&1 && [ -f main.py ]; then \
+        exec uvicorn main:app --host 0.0.0.0 --port ${{PORT}}; \
     elif [ -f main.py ]; then \
         exec python main.py; \
     elif [ -f app.py ]; then \
@@ -617,7 +735,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Run application
 CMD ["node", "index.js"]
 """
-    
+
     def _generate_generic_dockerfile(self, config: DeploymentConfig) -> str:
         """Generate generic Dockerfile."""
         return f"""FROM ubuntu:22.04
@@ -625,8 +743,8 @@ CMD ["node", "index.js"]
 WORKDIR /app
 
 # Install basic dependencies
-RUN apt-get update && apt-get install -y \\
-    curl \\
+RUN apt-get update && apt-get install -y \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy application
@@ -639,13 +757,13 @@ RUN chmod +x start.sh || true
 EXPOSE {config.base_port}
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \\
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:{config.base_port}/health || exit 1
 
 # Default command
 CMD ["./start.sh"]
 """
-    
+
     def _create_container(self, 
                          config: DeploymentConfig,
                          image_name: str,
@@ -812,7 +930,7 @@ CMD ["./start.sh"]
             try:
                 with open(path / "requirements.txt", 'r') as f:
                     content = f.read().lower()
-                    if 'fastapi' in content:
+                    if 'fastapi' in content or 'starlette' in content:
                         return 'fastapi'
                     elif 'flask' in content:
                         return 'flask'
@@ -838,7 +956,7 @@ CMD ["./start.sh"]
             for file_path in list(path.rglob('*.py'))[:50]:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     src = f.read().lower()
-                    if ('from fastapi' in src) or ('import fastapi' in src) or ('fastapi(' in src):
+                    if ('from fastapi' in src) or ('import fastapi' in src) or ('fastapi(' in src) or ('import starlette' in src) or ('from starlette' in src):
                         return 'fastapi'
                     if ('from flask' in src) or ('import flask' in src) or ('flask(' in src):
                         return 'flask'

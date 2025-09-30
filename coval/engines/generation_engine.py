@@ -490,6 +490,14 @@ class GenerationEngine:
         
         prompt_parts.extend([
             "",
+            "IMPORTANT RULES:",
+            "- Generate ONLY clean, executable source code",
+            "- Do NOT include merge conflict markers (<<<<<<, ======, >>>>>>)",
+            "- Do NOT include template placeholders like {{variable}}",
+            "- Do NOT use SEARCH/REPLACE patterns or diff syntax", 
+            "- Do NOT wrap code in markdown code blocks (```)",
+            "- Provide complete, ready-to-run files",
+            "",
             "Please provide:",
             "1. Complete, working source code files",
             "2. Comprehensive tests",
@@ -555,6 +563,33 @@ class GenerationEngine:
             logger.error(f"LLM call failed after {max_retries} attempts: {last_error}")
         return None
     
+    def _clean_generated_content(self, content: str) -> str:
+        """Clean generated content from problematic patterns."""
+        import re
+        
+        # Remove merge conflict markers and surrounding content
+        content = re.sub(r'```python\s*\n<<<<<<< SEARCH.*?>>>>>>> REPLACE\s*\n```', '', content, flags=re.DOTALL)
+        content = re.sub(r'<<<<<<< SEARCH.*?>>>>>>> REPLACE', '', content, flags=re.DOTALL)
+        content = re.sub(r'<<<<<<<.*?>>>>>>>', '', content, flags=re.DOTALL)
+        
+        # Remove standalone markdown code block wrappers
+        content = re.sub(r'^```(?:python|javascript|typescript|)?\s*\n', '', content, flags=re.MULTILINE)
+        content = re.sub(r'\n```\s*$', '', content, flags=re.MULTILINE)
+        
+        # Remove template placeholders
+        content = re.sub(r'\{\{.*?\}\}', '', content)
+        
+        # Remove diff-style patterns
+        content = re.sub(r'^[+-]\s*', '', content, flags=re.MULTILINE)
+        
+        # Clean up multiple empty lines
+        content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
+        
+        # Strip leading/trailing whitespace
+        content = content.strip()
+        
+        return content
+
     def _parse_generation_response(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
         """Parse the LLM response to extract files, documentation, and tests."""
         files = {}
@@ -573,6 +608,7 @@ class GenerationEngine:
                 # Save previous section
                 if current_section and current_content:
                     content = "\n".join(current_content).strip()
+                    content = self._clean_generated_content(content)  # Clean content
                     if current_section.startswith("FILENAME:"):
                         filename = current_section.replace("FILENAME:", "").strip()
                         files[filename] = content
@@ -586,6 +622,7 @@ class GenerationEngine:
                 # Save previous file
                 if current_section and current_content:
                     content = "\n".join(current_content).strip()
+                    content = self._clean_generated_content(content)  # Clean content
                     if current_section.startswith("FILENAME:"):
                         filename = current_section.replace("FILENAME:", "").strip()
                         files[filename] = content
@@ -606,6 +643,7 @@ class GenerationEngine:
         # Handle last section
         if current_section and current_content:
             content = "\n".join(current_content).strip()
+            content = self._clean_generated_content(content)  # Clean content
             if current_section.startswith("FILENAME:"):
                 filename = current_section.replace("FILENAME:", "").strip()
                 files[filename] = content
