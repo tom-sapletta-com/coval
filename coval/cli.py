@@ -365,7 +365,7 @@ def status(ctx):
     console.print(iterations_table)
     
     # Deployments table
-    deployments = orch.deployment_manager.list_deployments()
+    deployments = orch.deployment_manager.active_deployments
     if deployments:
         deployments_table = Table(title="🐳 Active Deployments")
         deployments_table.add_column("Iteration", style="cyan")
@@ -631,7 +631,7 @@ def stop(ctx, iteration):
             console.print(f"[red]❌ Failed to stop deployment: {iteration}[/red]")
     else:
         # Stop all deployments
-        deployments = orch.deployment_manager.list_deployments()
+        deployments = orch.deployment_manager.active_deployments
         stopped_count = 0
         
         for deployment in deployments:

@@ -93,7 +93,9 @@ class ContainerManager:
             name=config.name,
             status='creating',
             ports=config.ports,
-            created_at=datetime.now()
+            created_at=datetime.now(),
+            started_at=None,
+            stopped_at=None
         )
         
         try:
@@ -338,7 +340,9 @@ class ContainerManager:
                 name=container_name,
                 status=container.status,
                 ports={},  # Would need to parse from container.attrs
-                created_at=None  # Would need to parse from container.attrs
+                created_at=None,  # Would need to parse from container.attrs
+                started_at=None,
+                stopped_at=None
             )
         except NotFound:
             return None
