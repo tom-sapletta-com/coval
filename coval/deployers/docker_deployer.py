@@ -10,6 +10,7 @@ import os
 import logging
 import tempfile
 import shutil
+import socket
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
@@ -85,6 +86,64 @@ class DockerDeployer:
         
         logger.debug("✓ DockerDeployer initialized with modular components")
     
+    def _find_next_available_port(self, start_port: int = 8000) -> int:
+        """
+        Find the next available port starting from start_port, incrementing by 1.
+        
+        Args:
+            start_port: Starting port number (default: 8000)
+            
+        Returns:
+            int: Next available port number
+        """
+        current_port = start_port
+        
+        # Check currently used ports by active deployments
+        used_ports = set()
+        for deployment in self.active_deployments.values():
+            for host_port in deployment.port_mappings.values():
+                used_ports.add(host_port)
+        
+        # Check Docker containers
+        try:
+            docker_client = docker.from_env()
+            containers = docker_client.containers.list()
+            for container in containers:
+                if container.ports:
+                    for port_mapping in container.ports.values():
+                        if port_mapping:
+                            for mapping in port_mapping:
+                                if mapping.get('HostPort'):
+                                    used_ports.add(int(mapping['HostPort']))
+        except Exception as e:
+            logger.warning(f"Could not check Docker container ports: {e}")
+        
+        # Find next available port
+        while current_port in used_ports or self._is_port_in_use(current_port):
+            current_port += 1
+            if current_port > 65535:  # Max port number
+                raise RuntimeError("No available ports found")
+        
+        logger.info(f"🔌 Found next available port: {current_port}")
+        return current_port
+    
+    def _is_port_in_use(self, port: int) -> bool:
+        """
+        Check if a port is currently in use on localhost.
+        
+        Args:
+            port: Port number to check
+            
+        Returns:
+            bool: True if port is in use, False otherwise
+        """
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind(('localhost', port))
+                return False
+            except socket.error:
+                return True
+    
     def deploy(self, config: DeploymentConfig) -> DeploymentResult:
         """
         Deploy an iteration using Docker with comprehensive error handling.
@@ -97,6 +156,12 @@ class DockerDeployer:
         """
         start_time = datetime.now()
         logger.info(f"🚀 Starting deployment for iteration: {config.iteration_id}")
+        
+        # Auto-increment port if base_port is 8000 (default) to avoid conflicts
+        if config.base_port == 8000:
+            auto_port = self._find_next_available_port(8000)
+            config.base_port = auto_port
+            logger.info(f"🔌 Auto-assigned port {auto_port} to avoid conflicts")
         
         # Create deployment result
         result = DeploymentResult(

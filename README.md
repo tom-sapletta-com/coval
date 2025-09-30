@@ -2,11 +2,35 @@
 
 # Intelligent Code Generation, Execution, and Repair 🤖 COVAL Developer Assistant  
 
-![COVAL](https://img.shields.io/badge/COVAL-v2.0-blue.svg)
-![Python](https://img.shields.io/badge/Python-3.11+-green.svg)
-![Docker](https://img.shields.io/badge/Docker-Required-blue.svg)
-![Ollama](https://img.shields.io/badge/Ollama-Required-orange.svg)
+<!-- Version & Status Badges -->
+![PyPI Version](https://img.shields.io/pypi/v/coval?color=blue&logo=pypi&logoColor=white)
+![Python Version](https://img.shields.io/pypi/pyversions/coval?color=green&logo=python&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)
+![License](https://img.shields.io/github/license/tom-sapletta-com/coval?color=blue)
+
+<!-- Download & Usage Statistics -->
+![PyPI Downloads](https://img.shields.io/pypi/dm/coval?color=blue&logo=pypi&label=downloads%2Fmonth)
+![PyPI Total Downloads](https://pepy.tech/badge/coval)
+![GitHub Downloads](https://img.shields.io/github/downloads/tom-sapletta-com/coval/total?color=green&logo=github)
+
+<!-- GitHub Repository Stats -->
+![GitHub Stars](https://img.shields.io/github/stars/tom-sapletta-com/coval?style=social)
+![GitHub Forks](https://img.shields.io/github/forks/tom-sapletta-com/coval?style=social)
+![GitHub Watchers](https://img.shields.io/github/watchers/tom-sapletta-com/coval?style=social)
+![GitHub Issues](https://img.shields.io/github/issues/tom-sapletta-com/coval?color=red)
+![GitHub Pull Requests](https://img.shields.io/github/issues-pr/tom-sapletta-com/coval?color=blue)
+
+<!-- Build & Quality Badges -->
+![Build Status](https://img.shields.io/github/actions/workflow/status/tom-sapletta-com/coval/ci.yml?branch=main&logo=github)
+![Test Coverage](https://img.shields.io/badge/coverage-30%25-yellow?logo=pytest)
+![Code Quality](https://img.shields.io/codeclimate/maintainability/tom-sapletta-com/coval?logo=codeclimate)
+![Last Commit](https://img.shields.io/github/last-commit/tom-sapletta-com/coval?color=blue&logo=git)
+
+<!-- Technology Stack -->
+![Docker](https://img.shields.io/badge/Docker-Required-blue.svg?logo=docker&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-Required-orange.svg?logo=ollama&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Supported-green?logo=fastapi&logoColor=white)
+![AI Models](https://img.shields.io/badge/AI-Qwen%20%7C%20DeepSeek%20%7C%20CodeLlama-purple?logo=openai&logoColor=white)
 
 **COVAL** is a comprehensive Python package for intelligent code generation, execution, and deployment with multiple LLM models. It features robust content cleaning, Docker containerization, health monitoring, and automated deployment workflows for building production-ready applications.
 
