@@ -24,3 +24,11 @@ dokumentacji, plikow z folderu pymll/ oraz z pliku repair.py
 zrob refaktoryzacje kodu, napraw błędy logiczne w kodzie i popraw dokumentacje
 oraz napisz testy, aby kod spełniał wytyczne
 
+
+na podstawie pliku goals.md zaktualizuj plik todo.md
+dodaj changelog.md 
+sparwdz co już ozstało zaimplementowane i zaznacz checbkoxy, stworz plan do realizacji 
+jako punkty do realizacji
+skonfrontuj plik VALIDATION.md z plikiem goals.md i aktualnym stanem aplikacji
+zaktualizuj kod i plik VALIDATION.md aby odpowiadał aktualnemu stanowi aplikacji
+

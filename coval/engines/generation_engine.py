@@ -564,29 +564,47 @@ class GenerationEngine:
         return None
     
     def _clean_generated_content(self, content: str) -> str:
-        """Clean generated content from problematic patterns."""
+        """Clean generated content from problematic patterns while preserving valid code."""
         import re
         
-        # Remove merge conflict markers and surrounding content
-        content = re.sub(r'```python\s*\n<<<<<<< SEARCH.*?>>>>>>> REPLACE\s*\n```', '', content, flags=re.DOTALL)
-        content = re.sub(r'<<<<<<< SEARCH.*?>>>>>>> REPLACE', '', content, flags=re.DOTALL)
-        content = re.sub(r'<<<<<<<.*?>>>>>>>', '', content, flags=re.DOTALL)
+        # Store original content length for debugging
+        original_length = len(content)
+        logger.debug(f"Cleaning content of length {original_length}")
         
-        # Remove standalone markdown code block wrappers
-        content = re.sub(r'^```(?:python|javascript|typescript|)?\s*\n', '', content, flags=re.MULTILINE)
-        content = re.sub(r'\n```\s*$', '', content, flags=re.MULTILINE)
+        # Only apply cleaning if content looks like it contains problematic patterns
+        if not any(pattern in content for pattern in ['<<<<<<', '>>>>>>', '```python', '```javascript', '{{', '}}']):
+            logger.debug("No problematic patterns detected, returning content unchanged")
+            return content.strip()
         
-        # Remove template placeholders
-        content = re.sub(r'\{\{.*?\}\}', '', content)
+        # Remove specific merge conflict patterns but preserve valid code
+        if '<<<<<<< SEARCH' in content and '>>>>>>> REPLACE' in content:
+            # Remove only specific SEARCH/REPLACE blocks
+            content = re.sub(r'```python\s*\n<<<<<<< SEARCH.*?>>>>>>> REPLACE\s*\n```', '', content, flags=re.DOTALL)
+            content = re.sub(r'<<<<<<< SEARCH.*?>>>>>>> REPLACE', '', content, flags=re.DOTALL)
         
-        # Remove diff-style patterns
-        content = re.sub(r'^[+-]\s*', '', content, flags=re.MULTILINE)
+        # Remove only problematic merge conflict markers (not all <<<>>>)
+        content = re.sub(r'<<<<<<< HEAD.*?>>>>>>> \w+', '', content, flags=re.DOTALL)
         
-        # Clean up multiple empty lines
-        content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
+        # Remove wrapping markdown code blocks only if they wrap the entire content
+        lines = content.split('\n')
+        if len(lines) > 2 and lines[0].strip().startswith('```') and lines[-1].strip() == '```':
+            content = '\n'.join(lines[1:-1])
         
-        # Strip leading/trailing whitespace
+        # Remove template placeholders only if they're standalone
+        content = re.sub(r'^\{\{.*?\}\}$', '', content, flags=re.MULTILINE)
+        
+        # Clean up excessive whitespace but preserve code structure
+        content = re.sub(r'\n\s*\n\s*\n\s*\n', '\n\n', content)
         content = content.strip()
+        
+        cleaned_length = len(content)
+        logger.debug(f"Content cleaned: {original_length} -> {cleaned_length} chars")
+        
+        # Safety check: if we've removed more than 90% of content, it's likely an error
+        if original_length > 50 and cleaned_length < original_length * 0.1:
+            logger.warning(f"Aggressive cleaning detected, reverting to minimal cleaning")
+            # Fall back to minimal cleaning - just remove obvious patterns
+            content = content.replace('```python', '').replace('```', '').strip()
         
         return content
 
