@@ -111,6 +111,9 @@ class ResponseParser:
         # Validate and auto-fix missing required files
         files = self._validate_and_fix_files(files, response)
         
+        # Fix relative imports in Python files
+        files = self._fix_relative_imports(files)
+        
         return files, documentation, tests
     
     def parse_original_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
@@ -428,3 +431,55 @@ async def health():
             }
         }
         return json.dumps(package_json, indent=2)
+    
+    def _fix_relative_imports(self, files: Dict[str, str]) -> Dict[str, str]:
+        """Fix relative imports in Python files by converting them to direct imports."""
+        fixed_files = {}
+        
+        for filename, content in files.items():
+            if filename.endswith('.py'):
+                original_content = content
+                lines = content.split('\n')
+                fixed_lines = []
+                
+                for line in lines:
+                    fixed_line = line
+                    
+                    # Fix patterns like: from .database import ...
+                    # Convert to: import database or from database import ...
+                    if re.match(r'^from\s+\.(\w+)\s+import', line):
+                        # Extract module name and imports
+                        match = re.match(r'^from\s+\.(\w+)\s+import\s+(.+)$', line)
+                        if match:
+                            module_name = match.group(1)
+                            imports = match.group(2)
+                            fixed_line = f'import {module_name}'
+                            logger.debug(f"Fixed relative import in {filename}: '{line}' -> '{fixed_line}'")
+                    
+                    # Fix patterns like: from ..module import ...
+                    elif re.match(r'^from\s+\.\.+(\w+)\s+import', line):
+                        match = re.match(r'^from\s+\.\.+(\w+)\s+import\s+(.+)$', line)
+                        if match:
+                            module_name = match.group(1)
+                            imports = match.group(2)
+                            fixed_line = f'import {module_name}'
+                            logger.debug(f"Fixed relative import in {filename}: '{line}' -> '{fixed_line}'")
+                    
+                    # Fix patterns like: import .module (rare but possible)
+                    elif re.match(r'^import\s+\.', line):
+                        fixed_line = line.replace('import .', 'import ')
+                        logger.debug(f"Fixed relative import in {filename}: '{line}' -> '{fixed_line}'")
+                    
+                    fixed_lines.append(fixed_line)
+                
+                fixed_content = '\n'.join(fixed_lines)
+                
+                # Log if changes were made
+                if fixed_content != original_content:
+                    logger.info(f"Fixed relative imports in {filename}")
+                
+                fixed_files[filename] = fixed_content
+            else:
+                fixed_files[filename] = content
+        
+        return fixed_files

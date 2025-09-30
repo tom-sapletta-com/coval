@@ -213,6 +213,8 @@ For Python projects:
 - Ensure all functions use consistent async/await or sync patterns
 - Import Field from pydantic if using it
 - Import Session, HTTPException, Depends and all other needed classes
+- **DO NOT USE RELATIVE IMPORTS**: Instead of `from .module import function`, use `from package.module import function` or `import package.module; package.module.function()`
+- Example of correct import: `from mypackage.mymodule import myfunction`
 
 For Node.js projects:
 - ALWAYS create package.json with dependencies and scripts
