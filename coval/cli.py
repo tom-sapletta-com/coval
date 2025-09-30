@@ -625,7 +625,7 @@ def stop(ctx, iteration):
     
     if iteration:
         # Stop specific iteration
-        if orch.deployment_manager.stop_deployment(iteration):
+        if orch.deployment_manager.stop(iteration):
             console.print(f"[green]✅ Stopped deployment: {iteration}[/green]")
         else:
             console.print(f"[red]❌ Failed to stop deployment: {iteration}[/red]")
@@ -635,7 +635,7 @@ def stop(ctx, iteration):
         stopped_count = 0
         
         for deployment in deployments:
-            if orch.deployment_manager.stop_deployment(deployment.iteration_id):
+            if orch.deployment_manager.stop(deployment.iteration_id):
                 stopped_count += 1
         
         console.print(f"[green]✅ Stopped {stopped_count} deployments[/green]")
@@ -757,52 +757,60 @@ def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, progress=None,
         print("✅")
         
         print("🚀 Creating deployment...", end=" ", flush=True)
-        # Create deployment
-        deployment_status = orch.deployment_manager.create_transparent_deployment(
+        # Create deployment config
+        iteration_info = orch.iteration_manager.iterations.get(iteration_id)
+        deployment_config = DeploymentConfig(
             iteration_id=iteration_id,
-            iteration_path=iteration_path,
-            parent_iterations=parent_iterations
+            project_name="coval",
+            framework=iteration_info.framework if iteration_info else "fastapi",
+            language=iteration_info.language if iteration_info else "python",
+            source_path=iteration_path,
+            base_port=8000
         )
+        
+        # Deploy using new modular deployer (fixes container cleanup issues)
+        deployment_result = orch.deployment_manager.deploy(deployment_config)
         print("✅")
         
         print("📊 Updating status...", end=" ", flush=True)
         # Update iteration status based on real status
+        status = 'deployed' if deployment_result.success else 'failed'
         orch.iteration_manager.update_iteration_status(
             iteration_id,
-            'deployed',
-            docker_status=deployment_status.status
+            status,
+            docker_status=deployment_result.health_status.value
         )
         print("✅")
         
         port = None
-        if deployment_status.port_mappings:
+        if deployment_result.port_mappings:
             try:
                 # host_port
-                port = list(deployment_status.port_mappings.values())[0]
+                port = list(deployment_result.port_mappings.values())[0]
             except Exception:
                 port = None
         
         # Update progress if provided (backward compatibility)
         if progress and task:
-            if deployment_status.status == 'running' and port:
+            if deployment_result.success and port:
                 progress.update(task, description=f"✅ Deployed at http://localhost:{port}")
             else:
                 progress.update(task, description="⚠️ Deployment started, verifying status...")
         else:
-            if deployment_status.status == 'running' and port:
+            if deployment_result.success and port:
                 print(f"🌐 Available at http://localhost:{port}")
             else:
                 print("⚠️ Deployment started, verifying status...")
         
         title = "Deployment Info"
-        header = "🚀 Deployment successful!" if deployment_status.status == 'running' else "⚠️ Deployment created (not running)"
+        header = "🚀 Deployment successful!" if deployment_result.success else "⚠️ Deployment failed"
         url_line = f"🌐 URL: [green]http://localhost:{port}[/green]" if port else "🌐 URL: [yellow]N/A[/yellow]"
-        status_line = f"📊 Status: [yellow]{deployment_status.status}[/yellow]"
+        status_line = f"📊 Status: [yellow]{deployment_result.health_status.value}[/yellow]"
         
         deployment_panel = Panel(
             f"{header}\n"
             f"📁 Iteration: [cyan]{iteration_id}[/cyan]\n"
-            f"🐳 Container: [blue]{deployment_status.container_name}[/blue]\n"
+            f"🐳 Container: [blue]{deployment_result.container_name}[/blue]\n"
             f"{url_line}\n"
             f"{status_line}",
             title=title
