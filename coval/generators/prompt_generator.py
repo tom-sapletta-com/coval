@@ -198,27 +198,64 @@ Please structure your response using markdown with clear file separations:
 [file content]
 ```
 
-For each file, include:
-1. Main application files
+CRITICAL REQUIREMENTS - YOU MUST GENERATE ALL OF THESE FILES:
+1. Main application files with ALL necessary imports at the top of each file
 2. Configuration files
-3. Dependencies file (requirements.txt, package.json, etc.)
-4. Dockerfile for containerization
+3. **MANDATORY**: Dependencies file (requirements.txt for Python, package.json for Node.js)
+4. Dockerfile for containerization  
 5. Documentation/README
 6. Basic tests
 
-Ensure each file is complete and functional."""
+For Python projects:
+- ALWAYS create requirements.txt with ALL required packages and their versions
+- ALWAYS include ALL imports at the TOP of each Python file
+- Avoid circular imports by importing modules, not using relative imports incorrectly
+- Ensure all functions use consistent async/await or sync patterns
+- Import Field from pydantic if using it
+- Import Session, HTTPException, Depends and all other needed classes
+
+For Node.js projects:
+- ALWAYS create package.json with dependencies and scripts
+- Use proper ES6 module imports
+
+Ensure each file is complete, functional, and can run without import errors."""
     
     def _create_examples_section(self, request: GenerationRequest) -> str:
         """Create examples section if applicable."""
         if request.framework.lower() == 'fastapi':
             return """Example File Structure:
 - main.py (FastAPI application with routes)
+  * Import: from fastapi import FastAPI, Depends, HTTPException
+  * Import models and database modules (NOT relative imports with dot notation)
+  * Use: app = FastAPI()
 - models.py (Pydantic models)
+  * Import: from pydantic import BaseModel, Field
+  * Define User, UserCreate, TokenData models
 - database.py (Database configuration)
+  * Import: from sqlalchemy import create_engine, Column, Integer, String
+  * Import: from sqlalchemy.orm import sessionmaker, Session
+  * Import: from passlib.context import CryptContext
+  * Import: import models (to use models.UserCreate)
+  * Create engine, SessionLocal, Base
+  * Define get_db() function with yield
 - auth.py (Authentication logic)
-- requirements.txt (Dependencies)
+  * Import: from datetime import datetime, timedelta
+  * Import: from fastapi import HTTPException, Depends
+  * Import: from jose import JWTError, jwt
+  * Import: from passlib.context import CryptContext
+  * Import: import database, import models
+  * Define authenticate_user, create_access_token functions
+- requirements.txt (Dependencies - MANDATORY)
+  * fastapi>=0.104.0
+  * uvicorn[standard]>=0.24.0
+  * sqlalchemy>=2.0.0
+  * python-jose[cryptography]
+  * passlib[bcrypt]
+  * python-multipart
+  * pydantic>=2.0.0
 - Dockerfile (Container configuration)
-- README.md (Documentation)"""
+- README.md (Documentation)
+- tests/test_main.py (Basic tests)"""
         elif request.framework.lower() == 'flask':
             return """Example File Structure:
 - app.py (Flask application)

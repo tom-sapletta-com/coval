@@ -108,6 +108,9 @@ class ResponseParser:
         for filename in files.keys():
             logger.debug(f"Found file: {filename} ({len(files[filename])} chars)")
         
+        # Validate and auto-fix missing required files
+        files = self._validate_and_fix_files(files, response)
+        
         return files, documentation, tests
     
     def parse_original_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
@@ -309,3 +312,119 @@ async def health():
             return '\n'.join(doc_lines[:5])  # First 5 lines as documentation
         
         return ""
+    
+    def _validate_and_fix_files(self, files: Dict[str, str], response: str) -> Dict[str, str]:
+        """Validate and auto-fix missing required files."""
+        # Detect project type
+        has_python = any(f.endswith('.py') for f in files.keys())
+        has_nodejs = any(f.endswith('.js') or f.endswith('.ts') for f in files.keys())
+        
+        # Check and fix Python projects
+        if has_python:
+            if 'requirements.txt' not in files:
+                logger.warning("Missing requirements.txt for Python project - auto-generating")
+                # Extract imports from Python files
+                imports = self._extract_python_imports(files)
+                requirements = self._generate_requirements_from_imports(imports)
+                files['requirements.txt'] = requirements
+                logger.info(f"Auto-generated requirements.txt with {len(requirements.splitlines())} packages")
+        
+        # Check and fix Node.js projects
+        if has_nodejs:
+            if 'package.json' not in files:
+                logger.warning("Missing package.json for Node.js project - auto-generating")
+                files['package.json'] = self._generate_package_json()
+                logger.info("Auto-generated package.json")
+        
+        return files
+    
+    def _extract_python_imports(self, files: Dict[str, str]) -> set:
+        """Extract all imports from Python files."""
+        imports = set()
+        import_patterns = [
+            r'^import\s+(\w+)',
+            r'^from\s+(\w+)',
+        ]
+        
+        for filename, content in files.items():
+            if filename.endswith('.py'):
+                for line in content.split('\n'):
+                    line = line.strip()
+                    for pattern in import_patterns:
+                        match = re.match(pattern, line)
+                        if match:
+                            module = match.group(1)
+                            # Skip standard library modules
+                            if module not in ['os', 'sys', 're', 'json', 'logging', 'typing', 
+                                             'datetime', 'collections', 'functools', 'itertools',
+                                             'pathlib', 'asyncio', 'enum']:
+                                imports.add(module)
+        
+        return imports
+    
+    def _generate_requirements_from_imports(self, imports: set) -> str:
+        """Generate requirements.txt content from detected imports."""
+        # Map common imports to package names with versions
+        package_map = {
+            'fastapi': 'fastapi==0.104.1',
+            'uvicorn': 'uvicorn[standard]==0.24.0',
+            'pydantic': 'pydantic==2.5.0',
+            'sqlalchemy': 'sqlalchemy==2.0.23',
+            'jose': 'python-jose[cryptography]==3.3.0',
+            'jwt': 'python-jose[cryptography]==3.3.0',
+            'passlib': 'passlib[bcrypt]==1.7.4',
+            'bcrypt': 'passlib[bcrypt]==1.7.4',
+            'flask': 'flask==3.0.0',
+            'django': 'django==4.2.7',
+            'requests': 'requests==2.31.0',
+            'numpy': 'numpy==1.26.0',
+            'pandas': 'pandas==2.1.3',
+            'pytest': 'pytest==7.4.3',
+            'httpx': 'httpx==0.25.1',
+        }
+        
+        requirements = []
+        seen_packages = set()
+        
+        for imp in sorted(imports):
+            if imp in package_map:
+                package = package_map[imp]
+                # Avoid duplicates (e.g., jose and jwt both map to python-jose)
+                if package not in seen_packages:
+                    requirements.append(package)
+                    seen_packages.add(package)
+        
+        # Add python-multipart if fastapi is present (needed for forms)
+        if 'fastapi' in imports and 'python-multipart==0.0.6' not in requirements:
+            requirements.append('python-multipart==0.0.6')
+        
+        # Fallback: if no requirements detected, add basic FastAPI setup
+        if not requirements:
+            logger.warning("No imports detected - adding default FastAPI requirements")
+            requirements = [
+                'fastapi==0.104.1',
+                'uvicorn[standard]==0.24.0',
+                'pydantic==2.5.0',
+            ]
+        
+        return '\n'.join(requirements)
+    
+    def _generate_package_json(self) -> str:
+        """Generate basic package.json for Node.js projects."""
+        package_json = {
+            "name": "generated-app",
+            "version": "1.0.0",
+            "description": "Generated application",
+            "main": "index.js",
+            "scripts": {
+                "start": "node index.js",
+                "dev": "nodemon index.js"
+            },
+            "dependencies": {
+                "express": "^4.18.2"
+            },
+            "devDependencies": {
+                "nodemon": "^3.0.1"
+            }
+        }
+        return json.dumps(package_json, indent=2)
