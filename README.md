@@ -8,7 +8,15 @@
 ![Ollama](https://img.shields.io/badge/Ollama-Required-orange.svg)
 ![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)
 
-**COVAL** is a comprehensive Python package that manages iterative code generation, execution, and repair with multiple LLM models, integrated Docker Compose deployments, transparent volume overlays, legacy cleanup, and adaptive cost optimization to enable efficient and scalable automated code repair workflows.
+**COVAL** is a comprehensive Python package for intelligent code generation, execution, and deployment with multiple LLM models. It features robust content cleaning, Docker containerization, health monitoring, and automated deployment workflows for building production-ready applications.
+
+## ✨ Key Features
+- 🤖 **Multi-Model Support**: Qwen, DeepSeek, CodeLlama, Granite, and more
+- 🧹 **Smart Content Cleaning**: Removes merge conflicts and invalid patterns
+- 🐳 **Docker Integration**: Automated containerization and deployment  
+- 🔍 **Health Monitoring**: Container health checks and status tracking
+- 📊 **Debug Logging**: Comprehensive logging for troubleshooting
+- 🚀 **Production Ready**: Tested deployment workflows
 
 
 ```
@@ -49,20 +57,37 @@
 ## 🚀 Quick Start
 
 ```bash
-# Install COVAL
+# 1. Install dependencies
 pip install -e .
 
-# Generate new code
-coval generate -d "Create a FastAPI app with user authentication" --deploy
+# 2. Generate new code with specific model
+coval generate -d "Create a FastAPI app with user authentication" \
+  -f fastapi -l python \
+  --features "user registration" --features "JWT tokens" \
+  --model qwen
 
-# Check status
-coval status
 
-# Repair issues
-coval repair -e error.log --deploy
 
-# Cleanup old iterations
-coval cleanup -c 5
+# 3. Deploy generated code
+coval run --iteration <iteration_name>
+
+# 4. Check deployed containers
+docker ps | grep coval-
+
+# 5. Access your app
+curl http://localhost:8001/health
+```
+
+## 📋 Available Models
+
+```bash
+# Recommended models (configure in llm.config.yaml)
+--model qwen          # Qwen 2.5 Coder (recommended for code generation)
+--model deepseek      # DeepSeek Coder (good for analysis)
+--model deepseek-r1   # DeepSeek R1 (reasoning-focused)
+--model codellama13b  # CodeLlama 13B (large context)
+--model granite       # Granite Code (enterprise)
+--model mistral       # Mistral (fallback)
 ```
 
 ## ✨ Key Features
@@ -140,6 +165,9 @@ coval cleanup -c 5
 ```bash
 # Basic generation
 coval generate -d "Create a REST API for user management" --model deepseek-r1
+
+coval generate -d "Create a REST API for user management" --model qwen  --deploy
+
 
 # Specify framework and features
 coval generate -d "Build a blog platform" -f fastapi -l python \

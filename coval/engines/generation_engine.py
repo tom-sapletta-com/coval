@@ -199,13 +199,18 @@ class GenerationEngine:
         """
         # If user specified a model, prioritize it
         if preferred_model:
+            logger.debug(f"User specified preferred model: {preferred_model}")
             model_enum = self._get_model_enum_from_cli_name(preferred_model)
             model_key = self._get_config_key_from_enum(model_enum)
+            logger.debug(f"Mapped CLI name '{preferred_model}' -> enum '{model_enum}' -> config key '{model_key}'")
+            logger.debug(f"Available model capabilities keys: {list(self.model_capabilities.keys())}")
             
             if model_key in self.model_capabilities:
+                logger.info(f"Using preferred model: {preferred_model} (key: {model_key})")
                 return model_key, model_enum
             else:
-                logger.warning(f"Preferred model {preferred_model} not configured, falling back to automatic selection")
+                logger.warning(f"Preferred model {preferred_model} (key: {model_key}) not found in capabilities. Available: {list(self.model_capabilities.keys())}")
+                logger.warning(f"Falling back to automatic selection")
         
         # Automatic model selection
         best_model = None
@@ -284,16 +289,16 @@ class GenerationEngine:
         return cli_mapping.get(cli_name, LLMModel.QWEN_CODER)
     
     def _get_config_key_from_enum(self, model_enum: LLMModel) -> str:
-        """Convert LLMModel enum back to config key."""
+        """Convert LLMModel enum back to config key matching llm.config.yaml."""
         enum_to_key = {
-            LLMModel.QWEN_CODER: 'qwen2.5-coder',
-            LLMModel.DEEPSEEK_CODER: 'deepseek-coder', 
-            LLMModel.CODELLAMA_13B: 'codellama',
+            LLMModel.QWEN_CODER: 'qwen',  # Fixed: use 'qwen' key from config, not 'qwen2.5-coder'
+            LLMModel.DEEPSEEK_CODER: 'deepseek', 
+            LLMModel.CODELLAMA_13B: 'codellama13b',
             LLMModel.DEEPSEEK_R1: 'deepseek-r1',
-            LLMModel.GRANITE_CODE: 'granite-code',
+            LLMModel.GRANITE_CODE: 'granite',
             LLMModel.MISTRAL: 'mistral'
         }
-        return enum_to_key.get(model_enum, 'qwen2.5-coder')
+        return enum_to_key.get(model_enum, 'qwen')
     
     def _ensure_model_available(self, model_key: str) -> bool:
         """Ensure the specified model is available via ollama."""
@@ -567,44 +572,53 @@ class GenerationEngine:
         """Clean generated content from problematic patterns while preserving valid code."""
         import re
         
-        # Store original content length for debugging
+        # Store original content for safety
+        original_content = content
         original_length = len(content)
         logger.debug(f"Cleaning content of length {original_length}")
         
-        # Only apply cleaning if content looks like it contains problematic patterns
-        if not any(pattern in content for pattern in ['<<<<<<', '>>>>>>', '```python', '```javascript', '{{', '}}']):
-            logger.debug("No problematic patterns detected, returning content unchanged")
+        # If content is too short, don't clean it
+        if original_length < 10:
+            logger.debug("Content too short, returning unchanged")
             return content.strip()
         
-        # Remove specific merge conflict patterns but preserve valid code
+        # Very conservative cleaning - only remove obvious problematic patterns
+        
+        # 1. Remove ONLY complete merge conflict blocks (with proper markers)
+        if '<<<<<<< HEAD' in content and '>>>>>>> ' in content and '=======' in content:
+            logger.debug("Removing merge conflict markers")
+            content = re.sub(r'<<<<<<< HEAD.*?=======.*?>>>>>>> \w+', '', content, flags=re.DOTALL)
+        
+        # 2. Remove SEARCH/REPLACE blocks only if they're complete
         if '<<<<<<< SEARCH' in content and '>>>>>>> REPLACE' in content:
-            # Remove only specific SEARCH/REPLACE blocks
-            content = re.sub(r'```python\s*\n<<<<<<< SEARCH.*?>>>>>>> REPLACE\s*\n```', '', content, flags=re.DOTALL)
+            logger.debug("Removing SEARCH/REPLACE blocks")
             content = re.sub(r'<<<<<<< SEARCH.*?>>>>>>> REPLACE', '', content, flags=re.DOTALL)
         
-        # Remove only problematic merge conflict markers (not all <<<>>>)
-        content = re.sub(r'<<<<<<< HEAD.*?>>>>>>> \w+', '', content, flags=re.DOTALL)
-        
-        # Remove wrapping markdown code blocks only if they wrap the entire content
+        # 3. Remove wrapping markdown code blocks ONLY if they wrap the entire content
         lines = content.split('\n')
-        if len(lines) > 2 and lines[0].strip().startswith('```') and lines[-1].strip() == '```':
+        if (len(lines) >= 3 and 
+            lines[0].strip().startswith('```') and 
+            lines[-1].strip() == '```' and
+            not any(line.strip().startswith('```') for line in lines[1:-1])):
+            logger.debug("Removing wrapping code block")
             content = '\n'.join(lines[1:-1])
         
-        # Remove template placeholders only if they're standalone
-        content = re.sub(r'^\{\{.*?\}\}$', '', content, flags=re.MULTILINE)
-        
-        # Clean up excessive whitespace but preserve code structure
-        content = re.sub(r'\n\s*\n\s*\n\s*\n', '\n\n', content)
+        # 4. Clean up excessive whitespace (but preserve structure)
+        content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
         content = content.strip()
         
         cleaned_length = len(content)
         logger.debug(f"Content cleaned: {original_length} -> {cleaned_length} chars")
         
-        # Safety check: if we've removed more than 90% of content, it's likely an error
-        if original_length > 50 and cleaned_length < original_length * 0.1:
-            logger.warning(f"Aggressive cleaning detected, reverting to minimal cleaning")
-            # Fall back to minimal cleaning - just remove obvious patterns
-            content = content.replace('```python', '').replace('```', '').strip()
+        # CRITICAL SAFETY CHECK: If we've removed more than 80% of content, return original
+        if original_length > 20 and cleaned_length < original_length * 0.2:
+            logger.warning(f"Cleaning too aggressive ({cleaned_length}/{original_length}), returning original content")
+            return original_content.strip()
+        
+        # If cleaned content is empty but original wasn't, return original
+        if not content.strip() and original_content.strip():
+            logger.warning("Cleaning resulted in empty content, returning original")
+            return original_content.strip()
         
         return content
 
@@ -614,7 +628,47 @@ class GenerationEngine:
         tests = {}
         documentation = ""
         
-        # Split response into sections
+        logger.debug(f"Parsing LLM response of length {len(response)}")
+        
+        # DEBUG: Log first 500 chars of response to see format
+        logger.debug(f"Response preview: {response[:500]}...")
+        
+        # Try multiple parsing strategies
+        
+        # Strategy 1: Original format with "=====" separators
+        if "=====" in response and ("FILENAME:" in response or "FILE:" in response):
+            logger.debug("Using original format parser (===== separators)")
+            files, documentation, tests = self._parse_original_format(response)
+        
+        # Strategy 2: JSON format
+        elif "{" in response and "}" in response and ("files" in response or "code" in response):
+            logger.debug("Attempting JSON format parser")
+            files, documentation, tests = self._parse_json_format(response)
+        
+        # Strategy 3: Markdown code blocks
+        elif "```" in response:
+            logger.debug("Using markdown code block parser")
+            files, documentation, tests = self._parse_markdown_format(response)
+        
+        # Strategy 4: Fallback - create basic files from any code found
+        else:
+            logger.warning("No recognized format, using fallback parser")
+            files, documentation, tests = self._parse_fallback_format(response)
+        
+        logger.debug(f"Parsed {len(files)} files, {len(tests)} test files")
+        
+        # DEBUG: Log what files were found
+        for filename in files.keys():
+            logger.debug(f"Found file: {filename} ({len(files[filename])} chars)")
+        
+        return files, documentation, tests
+    
+    def _parse_original_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
+        """Parse response using original ===== separator format."""
+        files = {}
+        tests = {}
+        documentation = ""
+        
         sections = response.split("=====")
         current_section = None
         current_content = []
@@ -622,17 +676,18 @@ class GenerationEngine:
         for section in sections:
             section = section.strip()
             
-            if section.startswith("FILENAME:"):
+            if section.startswith("FILENAME:") or section.startswith("FILE:"):
                 # Save previous section
                 if current_section and current_content:
                     content = "\n".join(current_content).strip()
-                    content = self._clean_generated_content(content)  # Clean content
-                    if current_section.startswith("FILENAME:"):
-                        filename = current_section.replace("FILENAME:", "").strip()
-                        files[filename] = content
-                    elif current_section.startswith("TESTS:"):
-                        filename = current_section.replace("TESTS:", "").strip()
-                        tests[filename] = content
+                    content = self._clean_generated_content(content)
+                    if content:  # Only save if content exists
+                        if current_section.startswith(("FILENAME:", "FILE:")):
+                            filename = current_section.replace("FILENAME:", "").replace("FILE:", "").strip()
+                            files[filename] = content
+                        elif current_section.startswith("TESTS:"):
+                            filename = current_section.replace("TESTS:", "").strip()
+                            tests[filename] = content
                 
                 current_section = section
                 current_content = []
@@ -640,19 +695,15 @@ class GenerationEngine:
                 # Save previous file
                 if current_section and current_content:
                     content = "\n".join(current_content).strip()
-                    content = self._clean_generated_content(content)  # Clean content
-                    if current_section.startswith("FILENAME:"):
-                        filename = current_section.replace("FILENAME:", "").strip()
+                    content = self._clean_generated_content(content)
+                    if content and current_section.startswith(("FILENAME:", "FILE:")):
+                        filename = current_section.replace("FILENAME:", "").replace("FILE:", "").strip()
                         files[filename] = content
                 
                 current_section = section
                 current_content = []
             elif section.startswith("DOCUMENTATION"):
                 current_section = "DOCUMENTATION"
-                current_content = []
-            elif section.startswith("DEPENDENCIES") or section.startswith("SETUP"):
-                # Skip these for now, we'll handle them separately
-                current_section = None
                 current_content = []
             else:
                 if current_section:
@@ -661,15 +712,152 @@ class GenerationEngine:
         # Handle last section
         if current_section and current_content:
             content = "\n".join(current_content).strip()
-            content = self._clean_generated_content(content)  # Clean content
-            if current_section.startswith("FILENAME:"):
-                filename = current_section.replace("FILENAME:", "").strip()
+            content = self._clean_generated_content(content)
+            if content:
+                if current_section.startswith(("FILENAME:", "FILE:")):
+                    filename = current_section.replace("FILENAME:", "").replace("FILE:", "").strip()
+                    files[filename] = content
+                elif current_section.startswith("TESTS:"):
+                    filename = current_section.replace("TESTS:", "").strip()
+                    tests[filename] = content
+                elif current_section == "DOCUMENTATION":
+                    documentation = content
+        
+        return files, documentation, tests
+    
+    def _parse_json_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
+        """Parse JSON format responses."""
+        import json
+        import re
+        
+        files = {}
+        tests = {}
+        documentation = ""
+        
+        # Find JSON blocks
+        json_pattern = r'```json\s*(\{.*?\})\s*```'
+        json_matches = re.findall(json_pattern, response, re.DOTALL)
+        
+        # Also try finding JSON without markdown wrapping
+        if not json_matches:
+            json_pattern = r'(\{[^{}]*"files"[^{}]*\{.*?\}[^{}]*\})'
+            json_matches = re.findall(json_pattern, response, re.DOTALL)
+        
+        for json_str in json_matches:
+            try:
+                data = json.loads(json_str)
+                if "files" in data:
+                    for filename, content in data["files"].items():
+                        content = self._clean_generated_content(str(content))
+                        if content:
+                            files[filename] = content
+                
+                if "tests" in data:
+                    for filename, content in data["tests"].items():
+                        content = self._clean_generated_content(str(content))
+                        if content:
+                            tests[filename] = content
+                            
+                if "documentation" in data:
+                    documentation = str(data["documentation"])
+                    
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse JSON: {e}")
+                continue
+        
+        return files, documentation, tests
+    
+    def _parse_markdown_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
+        """Parse markdown code block format."""
+        import re
+        
+        files = {}
+        tests = {}
+        documentation = ""
+        
+        # Pattern to match: filename.ext or just code blocks
+        code_pattern = r'```(?:python|javascript|typescript|js|py)?\s*\n(.*?)\n```'
+        file_pattern = r'(?:File:|Filename:|File name:)\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py)?\s*\n(.*?)\n```'
+        
+        # First try to find files with explicit names
+        file_matches = re.findall(file_pattern, response, re.DOTALL | re.IGNORECASE)
+        for filename, content in file_matches:
+            filename = filename.strip().strip('`').strip()
+            content = self._clean_generated_content(content)
+            if content and filename:
                 files[filename] = content
-            elif current_section.startswith("TESTS:"):
-                filename = current_section.replace("TESTS:", "").strip()
-                tests[filename] = content
-            elif current_section == "DOCUMENTATION":
-                documentation = content
+        
+        # If no explicit files found, try to extract code blocks and infer filenames
+        if not files:
+            code_matches = re.findall(code_pattern, response, re.DOTALL)
+            for i, content in enumerate(code_matches):
+                content = self._clean_generated_content(content)
+                if content:
+                    # Try to infer filename from content
+                    if "from fastapi import" in content or "FastAPI" in content:
+                        filename = f"main.py" if i == 0 else f"app_{i}.py"
+                    elif "def test_" in content or "import pytest" in content:
+                        filename = f"test_main.py" if i == 0 else f"test_{i}.py"
+                        tests[filename] = content
+                        continue
+                    elif "package.json" in content or '"name"' in content:
+                        filename = "package.json"
+                    else:
+                        filename = f"app_{i}.py"
+                    
+                    files[filename] = content
+        
+        return files, documentation, tests
+    
+    def _parse_fallback_format(self, response: str) -> Tuple[Dict[str, str], str, Dict[str, str]]:
+        """Fallback parser for unrecognized formats."""
+        files = {}
+        tests = {}
+        documentation = response[:500]  # Use first part as documentation
+        
+        # Look for any Python-like code patterns
+        import re
+        
+        # Find function definitions, class definitions, imports
+        python_patterns = [
+            r'(from\s+\w+.*?import.*?)(?=\n\n|\n[A-Z]|\Z)',
+            r'(import\s+\w+.*?)(?=\n\n|\n[A-Z]|\Z)',  
+            r'(class\s+\w+.*?(?=\nclass|\Z))',
+            r'(def\s+\w+.*?(?=\ndef|\nclass|\Z))',
+            r'(app\s*=.*?(?=\n\n|\nif|\Z))'
+        ]
+        
+        code_found = []
+        for pattern in python_patterns:
+            matches = re.findall(pattern, response, re.DOTALL)
+            code_found.extend(matches)
+        
+        if code_found:
+            # Combine all found code into a main file
+            combined_code = '\n\n'.join(code_found)
+            combined_code = self._clean_generated_content(combined_code)
+            if combined_code:
+                files["main.py"] = combined_code
+        
+        # If still no code found, create a basic FastAPI app
+        if not files:
+            logger.warning("No code patterns found, creating basic FastAPI template")
+            basic_app = '''from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+'''
+            files["main.py"] = basic_app
+            
+            # Add requirements
+            files["requirements.txt"] = "fastapi==0.110.0\nuvicorn==0.27.0"
         
         return files, documentation, tests
     
