@@ -757,13 +757,12 @@ def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, progress=None,
         print("✅")
         
         print("🚀 Creating deployment...", end=" ", flush=True)
-        # Create deployment config
-        iteration_info = orch.iteration_manager.iterations.get(iteration_id)
+        # Create deployment config with sensible defaults
         deployment_config = DeploymentConfig(
             iteration_id=iteration_id,
             project_name="coval",
-            framework=iteration_info.framework if iteration_info else "fastapi",
-            language=iteration_info.language if iteration_info else "python",
+            framework="fastapi",  # Default framework
+            language="python",    # Default language
             source_path=iteration_path,
             base_port=8000
         )
