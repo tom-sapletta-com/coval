@@ -54,7 +54,8 @@ class TestCOVALOrchestrator:
     @patch('coval.cli.GenerationEngine')
     @patch('coval.cli.DockerDeployer')
     @patch('pathlib.Path.mkdir')
-    def test_initialization_with_mocks(self, mock_mkdir, mock_deployer, mock_engine, mock_iter):
+    @patch('logging.FileHandler')
+    def test_initialization_with_mocks(self, mock_filehandler, mock_mkdir, mock_deployer, mock_engine, mock_iter):
         """Test COVALOrchestrator initialization with mocked dependencies."""
         orchestrator = COVALOrchestrator("/tmp/test-project")
         assert orchestrator is not None

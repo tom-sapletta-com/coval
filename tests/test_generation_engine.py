@@ -59,7 +59,8 @@ class TestGenerationEngine:
 class TestModularComponents:
     """Test cases for modular components integration."""
     
-    def test_response_parser_integration(self):
+    @patch('coval.parsers.response_parser.logger')
+    def test_response_parser_integration(self, mock_logger):
         """Test ResponseParser integration."""
         engine = GenerationEngine()
         

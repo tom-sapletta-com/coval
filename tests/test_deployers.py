@@ -51,7 +51,8 @@ class TestContainerManager:
         assert status.stopped_at is None
     
     @patch('coval.deployers.container_manager.docker.from_env')
-    def test_force_cleanup_container(self, mock_docker):
+    @patch('coval.deployers.container_manager.logger')
+    def test_force_cleanup_container(self, mock_logger, mock_docker):
         """Test force cleanup of existing containers."""
         # Mock container that exists and needs cleanup
         mock_container = Mock()
@@ -119,8 +120,10 @@ class TestDockerDeployer:
         """Test DeploymentResult data class."""
         result = DeploymentResult(
             success=True,
+            iteration_id="test-iteration",
             container_name="test-container",
             container_id="test-id",
+            image_name="test-image:latest",
             port_mappings={8000: 8000},
             health_status=HealthStatus.HEALTHY,
             deployment_time=30.5,
