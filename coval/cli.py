@@ -24,7 +24,7 @@ from .core.iteration_manager import IterationManager
 from .core.cost_calculator import CostCalculator, CostMetrics
 from .engines.generation_engine import GenerationEngine, GenerationRequest
 from .engines.repair_engine import RepairEngine, LLMModel
-from .docker.deployment_manager import DeploymentManager
+from .deployers.docker_deployer import DockerDeployer, DeploymentConfig
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class COVALOrchestrator:
         self.iteration_manager = IterationManager(str(self.project_root))
         self.cost_calculator = CostCalculator()
         self.generation_engine = GenerationEngine()
-        self.deployment_manager = DeploymentManager(str(self.project_root))
+        self.deployment_manager = DockerDeployer(str(self.project_root))
         
         # Current state
         self.current_iteration = None
