@@ -138,8 +138,15 @@ clean: ## Clean build artifacts
 	rm -rf *.egg-info/
 	rm -rf .pytest_cache/
 	rm -rf htmlcov/
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	# Clean Python cache files, excluding deployment overlays to avoid permission issues
+	find . -path "./deployments" -prune -o -type f -name "*.pyc" -delete
+	find . -path "./deployments" -prune -o -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	# Clean deployment overlay cache files with sudo if needed
+	@if [ -d "./deployments/overlays" ]; then \
+		echo "$(YELLOW)Cleaning deployment overlay cache files (may require sudo)...$(NC)"; \
+		sudo find ./deployments/overlays -type f -name "*.pyc" -delete 2>/dev/null || true; \
+		sudo find ./deployments/overlays -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true; \
+	fi
 	@echo "$(GREEN)Clean complete$(NC)"
 
 .PHONY: build

@@ -202,7 +202,7 @@ def run(ctx, iteration, port, strategy):
         console=console
     ) as progress:
         task = progress.add_task("Deploying iteration...", total=None)
-        _deploy_iteration(orch, iteration, progress, task)
+        _deploy_iteration(orch, iteration, port, progress, task)
 
 
 @cli.command()
@@ -743,7 +743,7 @@ app.listen(port, () => {
 }''')
 
 
-def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, progress=None, task=None):
+def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, port: int = None, progress=None, task=None):
     """Deploy an iteration with simple progress display."""
     try:
         print("🐳 Preparing deployment...", end=" ", flush=True)
@@ -757,14 +757,15 @@ def _deploy_iteration(orch: COVALOrchestrator, iteration_id: str, progress=None,
         print("✅")
         
         print("🚀 Creating deployment...", end=" ", flush=True)
-        # Create deployment config with sensible defaults
+        # Create deployment config with port from CLI or default
+        base_port = port if port is not None else 8000
         deployment_config = DeploymentConfig(
             iteration_id=iteration_id,
             project_name="coval",
             framework="fastapi",  # Default framework
             language="python",    # Default language
             source_path=iteration_path,
-            base_port=8000
+            base_port=base_port
         )
         
         # Deploy using new modular deployer (fixes container cleanup issues)
