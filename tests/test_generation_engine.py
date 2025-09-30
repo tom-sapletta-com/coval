@@ -6,8 +6,8 @@ import pytest
 from unittest.mock import Mock, patch
 from pathlib import Path
 
-from coval.engines.generation_engine import GenerationEngine, GenerationRequest, GenerationResult
-from coval.models.generation_models import GenerationType, LLMModel
+from coval.engines.generation_engine import GenerationEngine
+from coval.models.generation_models import GenerationRequest, GenerationResult, LLMModel
 
 
 class TestGenerationEngine:
@@ -29,15 +29,16 @@ class TestGenerationEngine:
         """Test GenerationRequest data class."""
         request = GenerationRequest(
             description="Test FastAPI app",
-            generation_type=GenerationType.FROM_SCRATCH,
+            framework="fastapi",
             language="python",
-            framework="fastapi"
+            features=["authentication", "database"],
+            constraints=["lightweight", "fast"]
         )
         
         assert request.description == "Test FastAPI app"
-        assert request.generation_type == GenerationType.FROM_SCRATCH
-        assert request.language == "python"
         assert request.framework == "fastapi"
+        assert request.language == "python"
+        assert request.features == ["authentication", "database"]
     
     @patch('coval.engines.generation_engine.subprocess.run')
     def test_llm_model_selection(self, mock_subprocess):
@@ -76,9 +77,10 @@ class TestModularComponents:
         engine = GenerationEngine()
         request = GenerationRequest(
             description="Test app",
-            generation_type=GenerationType.FROM_SCRATCH,
+            framework="fastapi",
             language="python",
-            framework="fastapi"
+            features=["basic API"],
+            constraints=["simple"]
         )
         
         # Should not raise exception
