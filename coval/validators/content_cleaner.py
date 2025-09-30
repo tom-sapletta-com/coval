@@ -62,7 +62,7 @@ class ContentCleaner:
         # Apply cleaning patterns
         for pattern in self.problematic_patterns:
             # Special handling for markdown wrapper pattern
-            if pattern.startswith('^\s*```'):
+            if pattern.startswith(r'^\s*```'):
                 # Only remove markdown wrapper if it wraps the entire content
                 match = re.match(pattern, content.strip(), re.DOTALL)
                 if match:
