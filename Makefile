@@ -139,8 +139,8 @@ clean: ## Clean build artifacts
 	rm -rf .pytest_cache/
 	rm -rf htmlcov/
 	# Clean Python cache files, excluding deployment overlays to avoid permission issues
-	find . -path "./deployments" -prune -o -type f -name "*.pyc" -delete
-	find . -path "./deployments" -prune -o -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -path "./deployments" -prune -o -type f -name "*.pyc" -print0 | xargs -0 rm -f
+	find . -path "./deployments" -prune -o -type d -name __pycache__ -print0 | xargs -0 rm -rf
 	# Clean deployment overlay cache files with sudo if needed
 	@if [ -d "./deployments/overlays" ]; then \
 		echo "$(YELLOW)Cleaning deployment overlay cache files (may require sudo)...$(NC)"; \
