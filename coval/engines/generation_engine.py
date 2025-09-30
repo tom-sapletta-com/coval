@@ -183,8 +183,16 @@ class GenerationEngine:
     
     def _setup_logging(self):
         """Setup simplified logging for generation engine."""
-        # Set to WARNING to reduce verbose output, only show errors
-        logger.setLevel(logging.WARNING)
+        # TEMPORARY: Set to DEBUG to diagnose file generation issue
+        logger.setLevel(logging.DEBUG)
+        
+        # Add console handler if not present
+        if not logger.handlers:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter('🐛 %(levelname)s: %(message)s')
+            console_handler.setFormatter(formatter)
+            logger.addHandler(console_handler)
     
     def select_optimal_model(self, request: GenerationRequest, preferred_model: Optional[str] = None) -> Tuple[str, LLMModel]:
         """
@@ -403,8 +411,18 @@ class GenerationEngine:
             print("✅")
             
             print("📄 Processing files...", end=" ", flush=True)
+            
+            # CRITICAL DEBUG: Check LLM response
+            print(f"\n🐛 DEBUG: LLM response length: {len(generation_response)}")
+            print(f"🐛 DEBUG: Response preview: {generation_response[:200]}...")
+            
             # Parse and extract generated code
             files, docs, tests = self._parse_generation_response(generation_response)
+            
+            # CRITICAL DEBUG: Check parsing results
+            print(f"\n🐛 DEBUG: Parsed {len(files)} files, {len(tests)} tests")
+            for filename, content in files.items():
+                print(f"🐛 DEBUG: File '{filename}': {len(content)} chars")
             
             # Generate Docker files
             dockerfile = self._generate_dockerfile(request, files)
@@ -415,8 +433,20 @@ class GenerationEngine:
             print("✅")
             
             print("💾 Writing files...", end=" ", flush=True)
+            
+            # CRITICAL DEBUG: Check before writing
+            print(f"\n🐛 DEBUG: About to write {len(files)} files to {output_dir}")
+            
             # Write files to output directory
             self._write_generated_files(output_dir, files, tests)
+            
+            # CRITICAL DEBUG: Verify files were written
+            written_files = list(output_dir.rglob("*"))
+            print(f"\n🐛 DEBUG: Files on disk after writing: {len(written_files)}")
+            for file in written_files:
+                if file.is_file():
+                    print(f"🐛 DEBUG: Written file: {file.name} ({file.stat().st_size} bytes)")
+            
             print("✅")
             
             # Generate setup instructions
@@ -633,24 +663,29 @@ class GenerationEngine:
         # DEBUG: Log first 500 chars of response to see format
         logger.debug(f"Response preview: {response[:500]}...")
         
-        # Try multiple parsing strategies
+        # Try multiple parsing strategies - ORDER MATTERS!
         
         # Strategy 1: Original format with "=====" separators
         if "=====" in response and ("FILENAME:" in response or "FILE:" in response):
             logger.debug("Using original format parser (===== separators)")
             files, documentation, tests = self._parse_original_format(response)
         
-        # Strategy 2: JSON format
-        elif "{" in response and "}" in response and ("files" in response or "code" in response):
-            logger.debug("Attempting JSON format parser")
-            files, documentation, tests = self._parse_json_format(response)
+        # Strategy 2: Markdown with filename headers (check this BEFORE JSON)
+        elif ("### FILENAME:" in response or "## FILENAME:" in response or "# FILENAME:" in response or "**FILENAME:" in response) and "```" in response:
+            logger.debug("Using markdown format parser (filename headers)")
+            files, documentation, tests = self._parse_markdown_format(response)
         
-        # Strategy 3: Markdown code blocks
+        # Strategy 3: Markdown code blocks (general)
         elif "```" in response:
             logger.debug("Using markdown code block parser")
             files, documentation, tests = self._parse_markdown_format(response)
         
-        # Strategy 4: Fallback - create basic files from any code found
+        # Strategy 4: JSON format (check AFTER markdown to avoid false positives)
+        elif "```json" in response or ('"files"' in response and '"content"' in response):
+            logger.debug("Attempting JSON format parser")
+            files, documentation, tests = self._parse_json_format(response)
+        
+        # Strategy 5: Fallback - create basic files from any code found
         else:
             logger.warning("No recognized format, using fallback parser")
             files, documentation, tests = self._parse_fallback_format(response)
@@ -775,21 +810,41 @@ class GenerationEngine:
         tests = {}
         documentation = ""
         
-        # Pattern to match: filename.ext or just code blocks
-        code_pattern = r'```(?:python|javascript|typescript|js|py)?\s*\n(.*?)\n```'
-        file_pattern = r'(?:File:|Filename:|File name:)\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py)?\s*\n(.*?)\n```'
+        # Enhanced patterns to match various markdown filename formats
+        filename_patterns = [
+            # ### FILENAME: app/main.py format (most common)
+            r'###\s*FILENAME:\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```',
+            # ## FILENAME: format
+            r'##\s*FILENAME:\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```',
+            # # FILENAME: format  
+            r'#\s*FILENAME:\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```',
+            # **FILENAME:** format
+            r'\*\*FILENAME:\*\*\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```',
+            # File: format
+            r'(?:File:|Filename:|File name:)\s*([^\n]+)\s*\n```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```'
+        ]
         
-        # First try to find files with explicit names
-        file_matches = re.findall(file_pattern, response, re.DOTALL | re.IGNORECASE)
-        for filename, content in file_matches:
-            filename = filename.strip().strip('`').strip()
-            content = self._clean_generated_content(content)
-            if content and filename:
-                files[filename] = content
+        # Try each pattern
+        for pattern in filename_patterns:
+            file_matches = re.findall(pattern, response, re.DOTALL | re.IGNORECASE)
+            for filename, content in file_matches:
+                filename = filename.strip().strip('`').strip()
+                content = self._clean_generated_content(content)
+                if content and filename:
+                    # Handle directory paths in filename
+                    if '/' in filename:
+                        # Extract just the filename from path like "app/main.py" -> "main.py"
+                        # But preserve the directory structure
+                        files[filename] = content
+                    else:
+                        files[filename] = content
         
-        # If no explicit files found, try to extract code blocks and infer filenames
+        # If no explicit files found with patterns, try generic code block extraction
         if not files:
+            logger.debug("No filename patterns found, trying generic code block extraction")
+            code_pattern = r'```(?:python|javascript|typescript|js|py|json|yaml|dockerfile)?\s*\n(.*?)\n```'
             code_matches = re.findall(code_pattern, response, re.DOTALL)
+            
             for i, content in enumerate(code_matches):
                 content = self._clean_generated_content(content)
                 if content:
@@ -802,10 +857,26 @@ class GenerationEngine:
                         continue
                     elif "package.json" in content or '"name"' in content:
                         filename = "package.json"
+                    elif "FROM " in content and "WORKDIR" in content:
+                        filename = "Dockerfile"
+                    elif "requirements.txt" in response or "fastapi" in content:
+                        filename = "requirements.txt"
                     else:
                         filename = f"app_{i}.py"
                     
                     files[filename] = content
+        
+        # Extract documentation from the beginning of response
+        doc_lines = []
+        lines = response.split('\n')
+        for line in lines:
+            if line.strip().startswith('#') or line.strip().startswith('```'):
+                break
+            if line.strip():
+                doc_lines.append(line.strip())
+        
+        if doc_lines:
+            documentation = '\n'.join(doc_lines[:5])  # First 5 lines as documentation
         
         return files, documentation, tests
     
