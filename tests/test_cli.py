@@ -50,24 +50,22 @@ class TestCLI:
 class TestCOVALOrchestrator:
     """Test cases for COVALOrchestrator class."""
     
-    def setup_method(self):
-        """Set up test fixtures."""
-        with patch('coval.cli.IterationManager'), \
-             patch('coval.cli.GenerationEngine'), \
-             patch('coval.cli.DockerDeployer'):
-            self.orchestrator = COVALOrchestrator("/tmp/test-project")
+    @patch('coval.cli.IterationManager')
+    @patch('coval.cli.GenerationEngine')
+    @patch('coval.cli.DockerDeployer')
+    @patch('pathlib.Path.mkdir')
+    def test_initialization_with_mocks(self, mock_mkdir, mock_deployer, mock_engine, mock_iter):
+        """Test COVALOrchestrator initialization with mocked dependencies."""
+        orchestrator = COVALOrchestrator("/tmp/test-project")
+        assert orchestrator is not None
+        assert hasattr(orchestrator, 'generation_engine')
+        assert hasattr(orchestrator, 'deployment_manager')
+        assert hasattr(orchestrator, 'iteration_manager')
     
-    def test_initialization(self):
-        """Test COVALOrchestrator initialization."""
-        assert self.orchestrator is not None
-        assert hasattr(self.orchestrator, 'generation_engine')
-        assert hasattr(self.orchestrator, 'deployment_manager')
-        assert hasattr(self.orchestrator, 'iteration_manager')
-    
-    @patch('coval.cli.COVALOrchestrator')
-    def test_generate_command_missing_description(self, mock_orch):
+    def test_generate_command_missing_description(self):
         """Test generate command without required description."""
-        result = self.runner.invoke(cli, ['generate'])
+        runner = CliRunner()
+        result = runner.invoke(cli, ['generate'])
         assert result.exit_code == 2  # Click error for missing required option
         assert "Missing option" in result.output or "required" in result.output.lower()
     
@@ -80,7 +78,8 @@ class TestCOVALOrchestrator:
         mock_orch.deployment_manager.active_deployments = []
         mock_get_orch.return_value = mock_orch
         
-        result = self.runner.invoke(cli, ['status'])
+        runner = CliRunner()
+        result = runner.invoke(cli, ['status'])
         # Should not crash, may exit with 0 or 1 depending on content
         assert result.exit_code in [0, 1]
 

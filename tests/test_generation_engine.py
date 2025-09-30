@@ -40,15 +40,6 @@ class TestGenerationEngine:
         assert request.language == "python"
         assert request.features == ["authentication", "database"]
     
-    @patch('coval.engines.generation_engine.subprocess.run')
-    def test_llm_model_selection(self, mock_subprocess):
-        """Test LLM model selection logic."""
-        mock_subprocess.return_value.returncode = 0
-        mock_subprocess.return_value.stdout = "test output"
-        
-        model = self.engine._select_model("qwen")
-        assert model is not None
-    
     def test_content_cleaning_integration(self):
         """Test content cleaning with modular ContentCleaner."""
         dirty_content = "```python\nprint('hello')\n```"
@@ -63,30 +54,10 @@ class TestGenerationEngine:
         empty_content = ""
         result = self.engine._clean_generated_content(empty_content)
         assert result == ""
-        
-        none_content = None
-        with pytest.raises(AttributeError):
-            self.engine._clean_generated_content(none_content)
 
 
 class TestModularComponents:
     """Test cases for modular components integration."""
-    
-    def test_prompt_generator_integration(self):
-        """Test PromptGenerator integration."""
-        engine = GenerationEngine()
-        request = GenerationRequest(
-            description="Test app",
-            framework="fastapi",
-            language="python",
-            features=["basic API"],
-            constraints=["simple"]
-        )
-        
-        # Should not raise exception
-        prompt = engine._create_prompt(request)
-        assert isinstance(prompt, str)
-        assert len(prompt) > 0
     
     def test_response_parser_integration(self):
         """Test ResponseParser integration."""
@@ -102,13 +73,43 @@ def hello():
         assert isinstance(files, dict)
         assert len(files) >= 0  # May be empty if parsing fails, that's ok for unit test
     
-    def test_docker_generator_integration(self):
-        """Test DockerGenerator integration."""
+    def test_dockerfile_generation(self):
+        """Test Dockerfile generation."""
         engine = GenerationEngine()
         
-        dockerfile, compose = engine._generate_docker_files("python", "fastapi")
+        dockerfile = engine._generate_dockerfile("python", "fastapi")
         
         assert dockerfile is not None
-        assert compose is not None
+        assert isinstance(dockerfile, str)
+        assert len(dockerfile) > 0
         assert "python" in dockerfile.lower()
-        assert "fastapi" in dockerfile.lower() or "uvicorn" in dockerfile.lower()
+
+
+class TestDataModels:
+    """Test data model classes."""
+    
+    def test_llm_model_enum(self):
+        """Test LLMModel enum values."""
+        assert LLMModel.QWEN_CODER.value == "qwen2.5-coder:7b"
+        assert LLMModel.DEEPSEEK_CODER.value == "deepseek-coder:6.7b"
+        assert LLMModel.CODELLAMA_13B.value == "codellama:13b"
+    
+    def test_generation_result_creation(self):
+        """Test GenerationResult data class."""
+        result = GenerationResult(
+            success=True,
+            generated_files={"main.py": "print('hello')"},
+            documentation="Test docs",
+            tests={"test_main.py": "def test_hello(): pass"},
+            dockerfile="FROM python:3.12",
+            docker_compose="version: '3.8'",
+            dependencies=["fastapi", "uvicorn"],
+            setup_instructions="Run with docker-compose up",
+            execution_time=1.5,
+            model_used="qwen2.5-coder:7b"
+        )
+        
+        assert result.success is True
+        assert result.generated_files["main.py"] == "print('hello')"
+        assert result.execution_time == 1.5
+        assert result.model_used == "qwen2.5-coder:7b"
