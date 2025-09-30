@@ -43,8 +43,8 @@ install: ## Install project dependencies
 .PHONY: install-dev
 install-dev: ## Install development dependencies
 	@echo "$(BLUE)Installing development dependencies...$(NC)"
-	$(PIP) install -r requirements.txt
-	$(PIP) install -e ".[dev]"
+	$(PIP) install -r requirements-dev.txt
+	$(PIP) install -e .
 	@echo "$(GREEN)Development dependencies installed$(NC)"
 
 .PHONY: install-docs
