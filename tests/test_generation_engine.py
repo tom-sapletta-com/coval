@@ -77,7 +77,16 @@ def hello():
         """Test Dockerfile generation."""
         engine = GenerationEngine()
         
-        dockerfile = engine._generate_dockerfile("python", "fastapi")
+        request = GenerationRequest(
+            description="Test app",
+            framework="fastapi",
+            language="python",
+            features=["basic API"],
+            constraints=["simple"]
+        )
+        files = {"main.py": "print('hello')"}
+        
+        dockerfile = engine._generate_dockerfile(request, files)
         
         assert dockerfile is not None
         assert isinstance(dockerfile, str)
@@ -106,7 +115,8 @@ class TestDataModels:
             dependencies=["fastapi", "uvicorn"],
             setup_instructions="Run with docker-compose up",
             execution_time=1.5,
-            model_used="qwen2.5-coder:7b"
+            model_used="qwen2.5-coder:7b",
+            confidence_score=0.95
         )
         
         assert result.success is True
